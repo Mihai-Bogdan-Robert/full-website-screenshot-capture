@@ -1,0 +1,1 @@
+Link to install all 3 resources: https://googlechromelabs.github.io/chrome-for-testing/
