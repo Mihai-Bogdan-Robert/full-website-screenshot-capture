@@ -12,7 +12,6 @@ takes full-page screenshots with Playwright, and saves them to output_folder.
 import sys
 import os
 import time
-import argparse
 import queue
 import requests
 from urllib.parse import urlparse, urljoin, urldefrag
@@ -126,7 +125,8 @@ def crawl_and_screenshot(start_url, out_dir, max_pages=200, delay=1.0, headless=
                     print(f"  -> screenshot failed: {e}")
 
                 page_count += 1
-                time.sleep(delay)
+                # delay functionality is commented out for now (GUI will implement later)
+                # time.sleep(delay)
 
             except Exception as e:
                 print(f"  -> error visiting {url}: {e}")
@@ -138,28 +138,21 @@ def crawl_and_screenshot(start_url, out_dir, max_pages=200, delay=1.0, headless=
             pass
 
     print(f"Done. {page_count} screenshots saved in {out_dir}")
+    return page_count
 
-# ---- CLI ----
-def main():
-    ap = argparse.ArgumentParser(description="Crawl a domain and take full-page screenshots")
-    ap.add_argument("start_url", help="Starting URL (example: https://example.com)")
-    ap.add_argument("out_dir", help="Output directory for screenshots")
-    ap.add_argument("--max", type=int, default=200, help="Maximum pages to screenshot")
-    ap.add_argument("--delay", type=float, default=1.0, help="Seconds delay between requests")
-    ap.add_argument("--headless", action="store_true", help="Run browser in headless mode (default)")
-    ap.add_argument("--no-headless", dest="headless", action="store_false", help="Run browser visible (for debugging)")
-    ap.add_argument("--ua", help="Custom User-Agent string")
-    args = ap.parse_args()
+def main(folder, url, max_pages=200, delay=1.0, headless=True, user_agent=None):
+    """
+    Programmatic entrypoint for use by other code.
 
-    crawl_and_screenshot(
-        args.start_url,
-        args.out_dir,
-        max_pages=args.max,
-        delay=args.delay,
-        headless=args.headless,
-        user_agent=args.ua,
-    )
+    Usage:
+        import main
+        result = main.main(folder, url)
 
-if __name__ == "__main__":
-    main()
+    Returns a dict: { 'screenshots': int, 'out_dir': str }
+    """
 
+    #--------------------TODO----------------------
+    # Add delay slider between requests in GUI
+
+    page_count = crawl_and_screenshot(url, folder, max_pages=max_pages, delay=delay, headless=headless, user_agent=user_agent)
+    return { 'screenshots': page_count, 'out_dir': folder }
