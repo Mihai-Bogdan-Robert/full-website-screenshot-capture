@@ -62,4 +62,10 @@ content.grid_columnconfigure(0, weight=0)
 content.grid_columnconfigure(1, weight=1)
 content.grid_columnconfigure(2, weight=0)
 
+#---------------TODO---------------
+# Add delay slider between requests in GUI
+# Add a status bar to show progress
+# Add max pages input field
+# Add more options as needed
+
 root.mainloop()
