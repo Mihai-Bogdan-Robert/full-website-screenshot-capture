@@ -1,4 +1,7 @@
-## 🚀 Full Website Captures
+## Full Website Captures
+
+![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)
+![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)
 
 Welcome! This GUI is a lightweight desktop front-end for the Full Website Captures tool. It lets you point the tool at a domain and choose an output folder — then takes full-page screenshots of the pages listed in the sitemap found at that domain.
 

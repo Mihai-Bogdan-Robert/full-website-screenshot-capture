@@ -1,0 +1,12 @@
+# Runtime dependencies for Full Website Captures (GUI)
+# Pin versions only if you need reproducible builds; current file uses flexible ranges.
+requests>=2.28
+beautifulsoup4>=4.12
+playwright>=1.40
+
+# Optional / developer tools
+# pyinstaller for building native executables
+pyinstaller>=5.10
+# (Optional) packaging helper if you choose nuitka or briefcase
+# nuitka
+# briefcase
