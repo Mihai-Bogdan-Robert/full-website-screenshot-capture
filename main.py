@@ -40,16 +40,20 @@ def screenshot_urls(urls, folder, start_index=0, max_pages=None, headless=True, 
         max_pages = len(urls)
 
     def sanitize(s):
-        # allowed character set: letters, digits, space, dash and underscore
-        keep = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 -_"
-        # None is converted to empty string and leading/trailing whitespace are trimmed
+        # Convert None to empty string and trim whitespace
         s = (s or '').strip()
-        # replace forward slashes (path separators) with a space to avoid nested paths
-        s = s.replace('/', ' ')
-        # remove any character not in the allowed set (drops punctuation, emojis, non-ascii)
-        out = ''.join(ch for ch in s if ch in keep)
-        # trim again and convert internal spaces to underscores
-        out = out.strip().replace(' ', '_')
+        # Replace forward slashes (path separators) with a dash so we never create nested paths
+        s = s.replace('/', '-')
+        # Replace spaces and underscores with a single dash to meet your requirement
+        s = s.replace(' ', '-').replace('_', '-')
+        # Keep only ASCII letters, digits and dash
+        allowed = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-"
+        out = ''.join(ch for ch in s if ch in allowed)
+        # collapse multiple consecutive dashes into a single dash
+        while '--' in out:
+            out = out.replace('--', '-')
+        # strip leading/trailing dashes
+        out = out.strip('-')
         # limit filename length to 120 characters
         return out[:120]
 
@@ -72,6 +76,40 @@ def screenshot_urls(urls, folder, start_index=0, max_pages=None, headless=True, 
 
                 page.wait_for_load_state('networkidle', timeout=5000)
 
+                # Try to trigger lazy-loaded images by scrolling the page slowly
+                # and then wait until all <img> elements report they are complete
+                # (naturalWidth > 0) to reduce partially-loaded images in screenshots.
+                try:
+                    # Scroll the page in small steps so that lazy-load handlers trigger.
+                    page.evaluate("""
+                    async () => {
+                        const distance = 500;
+                        const delay = 100; // ms
+                        const el = document.scrollingElement || document.documentElement;
+                        while (el.scrollTop + window.innerHeight < el.scrollHeight) {
+                            el.scrollBy(0, distance);
+                            await new Promise(r => setTimeout(r, delay));
+                        }
+                        // one final scroll to bottom
+                        el.scrollTop = el.scrollHeight;
+                        // small pause to let lazy-load handlers run
+                        await new Promise(r => setTimeout(r, 200));
+                        // return to top (optional)
+                        window.scrollTo(0, 0);
+                        return true;
+                    }
+                    """)
+
+                    # Wait until all images are either complete or there are no images.
+                    # This avoids taking screenshots while images are mid-download.
+                    page.wait_for_function(
+                        "() => { const imgs = Array.from(document.images); if (!imgs.length) return true; return imgs.every(i => i.complete && (i.naturalWidth > 0 || !i.src)); }",
+                        timeout=10000,
+                    )
+                except Exception as e:
+                    # Non-fatal: if scrolling or the wait fails, proceed to screenshot anyway.
+                    print(f"  -> image-ready wait/scroll helper failed: {e}")
+
                 # read <title> from the page, if Playwright fails to get it fall back to empty string
                 try:
                     title = page.title() or ''
@@ -79,7 +117,8 @@ def screenshot_urls(urls, folder, start_index=0, max_pages=None, headless=True, 
                     title = ''
 
                 name = sanitize(title)
-                base = f"{idx:03d}_{name}"
+                # join index and name with a dash (e.g., 007-Optik)
+                base = f"{idx:03d}-{name}"
                 filename = base + ".png"
                 n = 1
 
@@ -89,7 +128,7 @@ def screenshot_urls(urls, folder, start_index=0, max_pages=None, headless=True, 
                     n += 1
 
                 fullpath = os.path.join(folder, filename)
-                
+
                 # capture and save the screenshot with full_page=True
                 try:
                     page.screenshot(path=fullpath, full_page=True)
@@ -193,4 +232,5 @@ def main(folder, url, max_pages=200, delay=1.0, headless=True, user_agent=None):
     
     #-------------TODO--------4 STEP: Screenshot mobile URLs-–-------------------–––-
 
-    return "Great"
+    # return the detailed result from the screenshot run so callers can inspect saved files and failures
+    return result

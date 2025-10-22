@@ -41,8 +41,8 @@ desc.pack(pady=(5, 5), anchor='w', padx=14)
 content = ttk.Frame(card)
 content.pack(fill='both', expand=True, padx=12)
 
-# Sitemap URL
-ttk.Label(content, text="Sitemap URL:").grid(row=0, column=0, sticky='w')
+# Website domain
+ttk.Label(content, text="Website domain:").grid(row=0, column=0, sticky='w')
 url_entry = ttk.Entry(content, width=60)
 url_entry.grid(row=0, column=1, columnspan=2, sticky='we', padx=(8,0))
 
