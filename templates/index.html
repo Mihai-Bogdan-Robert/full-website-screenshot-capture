@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Full Website Captures</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
+    <style>
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background-image: 
+                linear-gradient(135deg, #667eea 0%, #764ba2 100%),
+                url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+            background-blend-mode: overlay;
+        }
+        .card {
+            backdrop-filter: blur(10px);
+            background: rgba(255, 255, 255, 0.95);
+        }
+        .screenshot-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 1rem;
+        }
+        .screenshot-item {
+            aspect-ratio: 9/16;
+            overflow: hidden;
+            border-radius: 0.5rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .screenshot-item:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+        }
+        .screenshot-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            object-position: top;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            z-index: 1000;
+            overflow: auto;
+        }
+        .modal.active {
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+            padding: 2rem;
+        }
+        .modal img {
+            max-width: 100%;
+            height: auto;
+        }
+        .modal-close {
+            position: fixed;
+            top: 1rem;
+            right: 1rem;
+            color: white;
+            font-size: 2rem;
+            cursor: pointer;
+            z-index: 1001;
+        }
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .pulse {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: .5; }
+        }
+    </style>
+</head>
+<body class="min-h-screen gradient-bg">
+    <div class="container mx-auto px-4 py-8">
+        <!-- Header -->
+        <div class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-white mb-2">📸 Full Website Captures</h1>
+            <p class="text-white text-opacity-80">Capture full-page screenshots of entire websites</p>
+        </div>
+
+        <!-- Main Card -->
+        <div class="max-w-2xl mx-auto card rounded-2xl shadow-2xl p-8 mb-8">
+            <form id="captureForm" class="space-y-6">
+                <!-- URL Input -->
+                <div>
+                    <label for="url" class="block text-sm font-medium text-gray-700 mb-2">
+                        Website URL
+                    </label>
+                    <input 
+                        type="text" 
+                        id="url" 
+                        name="url" 
+                        placeholder="https://example.com"
+                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition"
+                        required
+                    >
+                </div>
+
+                <!-- Discovery Mode -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-3">
+                        How should we find pages?
+                    </label>
+                    <div class="grid grid-cols-2 gap-4">
+                        <label class="relative cursor-pointer">
+                            <input type="radio" name="mode" value="sitemap" checked class="peer sr-only">
+                            <div class="p-4 border-2 border-gray-200 rounded-xl peer-checked:border-purple-600 peer-checked:bg-purple-100 peer-checked:shadow-md hover:border-gray-300 transition-all">
+                                <div class="flex items-center space-x-3">
+                                    <span class="text-2xl">🗺️</span>
+                                    <div>
+                                        <div class="font-semibold text-gray-800 peer-checked:text-purple-800">Sitemap</div>
+                                        <div class="text-xs text-gray-500">Use sitemap.xml</div>
+                                    </div>
+                                </div>
+                                <div class="absolute top-2 right-2 w-5 h-5 rounded-full border-2 border-gray-300 peer-checked:border-purple-600 peer-checked:bg-purple-600 flex items-center justify-center opacity-0 peer-checked:opacity-100 transition-opacity">
+                                    <svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                                    </svg>
+                                </div>
+                            </div>
+                        </label>
+                        <label class="relative cursor-pointer">
+                            <input type="radio" name="mode" value="crawl" class="peer sr-only">
+                            <div class="p-4 border-2 border-gray-200 rounded-xl peer-checked:border-purple-600 peer-checked:bg-purple-100 peer-checked:shadow-md hover:border-gray-300 transition-all">
+                                <div class="flex items-center space-x-3">
+                                    <span class="text-2xl">🕷️</span>
+                                    <div>
+                                        <div class="font-semibold text-gray-800 peer-checked:text-purple-800">Crawl</div>
+                                        <div class="text-xs text-gray-500">Discover all links</div>
+                                    </div>
+                                </div>
+                                <div class="absolute top-2 right-2 w-5 h-5 rounded-full border-2 border-gray-300 peer-checked:border-purple-600 peer-checked:bg-purple-600 flex items-center justify-center opacity-0 peer-checked:opacity-100 transition-opacity">
+                                    <svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                                    </svg>
+                                </div>
+                            </div>
+                        </label>
+                    </div>
+                    <p id="modeDescription" class="mt-2 text-sm text-gray-500">
+                        Uses the website's sitemap.xml to find pages. Fast and reliable if available.
+                    </p>
+                </div>
+
+                <!-- Device Type -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-3">
+                        Capture viewport
+                    </label>
+                    <div class="grid grid-cols-3 gap-4">
+                        <label class="relative cursor-pointer">
+                            <input type="radio" name="device" value="desktop" checked class="peer sr-only">
+                            <div class="p-4 border-2 border-gray-200 rounded-xl peer-checked:border-purple-600 peer-checked:bg-purple-100 peer-checked:shadow-md hover:border-gray-300 transition-all">
+                                <div class="flex items-center space-x-3">
+                                    <span class="text-2xl">🖥️</span>
+                                    <div>
+                                        <div class="font-semibold text-gray-800">Desktop</div>
+                                        <div class="text-xs text-gray-500">1920×1080</div>
+                                    </div>
+                                </div>
+                                <div class="absolute top-2 right-2 w-5 h-5 rounded-full border-2 border-gray-300 peer-checked:border-purple-600 peer-checked:bg-purple-600 flex items-center justify-center opacity-0 peer-checked:opacity-100 transition-opacity">
+                                    <svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                                    </svg>
+                                </div>
+                            </div>
+                        </label>
+                        <label class="relative cursor-pointer">
+                            <input type="radio" name="device" value="mobile" class="peer sr-only">
+                            <div class="p-4 border-2 border-gray-200 rounded-xl peer-checked:border-purple-600 peer-checked:bg-purple-100 peer-checked:shadow-md hover:border-gray-300 transition-all">
+                                <div class="flex items-center space-x-3">
+                                    <span class="text-2xl">📱</span>
+                                    <div>
+                                        <div class="font-semibold text-gray-800">Mobile</div>
+                                        <div class="text-xs text-gray-500">390×844</div>
+                                    </div>
+                                </div>
+                                <div class="absolute top-2 right-2 w-5 h-5 rounded-full border-2 border-gray-300 peer-checked:border-purple-600 peer-checked:bg-purple-600 flex items-center justify-center opacity-0 peer-checked:opacity-100 transition-opacity">
+                                    <svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                                    </svg>
+                                </div>
+                            </div>
+                        </label>
+                        <label class="relative cursor-pointer">
+                            <input type="radio" name="device" value="both" class="peer sr-only">
+                            <div class="p-4 border-2 border-gray-200 rounded-xl peer-checked:border-purple-600 peer-checked:bg-purple-100 peer-checked:shadow-md hover:border-gray-300 transition-all">
+                                <div class="flex items-center space-x-3">
+                                    <span class="text-2xl">📱🖥️</span>
+                                    <div>
+                                        <div class="font-semibold text-gray-800">Both</div>
+                                        <div class="text-xs text-gray-500">All sizes</div>
+                                    </div>
+                                </div>
+                                <div class="absolute top-2 right-2 w-5 h-5 rounded-full border-2 border-gray-300 peer-checked:border-purple-600 peer-checked:bg-purple-600 flex items-center justify-center opacity-0 peer-checked:opacity-100 transition-opacity">
+                                    <svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                                    </svg>
+                                </div>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Max Pages -->
+                <div>
+                    <label for="maxPages" class="block text-sm font-medium text-gray-700 mb-2">
+                        Maximum Pages to Capture
+                    </label>
+                    <input 
+                        type="number" 
+                        id="maxPages" 
+                        name="maxPages" 
+                        value="50"
+                        min="1"
+                        max="500"
+                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition"
+                    >
+                    <p class="mt-1 text-sm text-gray-500">Limit the number of pages to screenshot (1-500)</p>
+                </div>
+
+                <!-- Website Preview -->
+                <div id="previewSection" class="hidden">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        Website Preview
+                    </label>
+                    <div class="border border-gray-300 rounded-lg overflow-hidden bg-gray-100">
+                        <div class="bg-gray-200 px-3 py-2 flex items-center space-x-2 border-b border-gray-300">
+                            <div class="flex space-x-1.5">
+                                <div class="w-3 h-3 rounded-full bg-red-400"></div>
+                                <div class="w-3 h-3 rounded-full bg-yellow-400"></div>
+                                <div class="w-3 h-3 rounded-full bg-green-400"></div>
+                            </div>
+                            <div class="flex-1 bg-white rounded px-3 py-1 text-xs text-gray-600 truncate" id="previewUrl"></div>
+                        </div>
+                        <div class="relative" style="height: 200px;">
+                            <iframe 
+                                id="previewFrame" 
+                                class="w-full h-full border-0"
+                                sandbox="allow-scripts allow-same-origin"
+                            ></iframe>
+                            <div id="previewLoading" class="absolute inset-0 bg-gray-100 flex items-center justify-center">
+                                <div class="text-center">
+                                    <div class="spinner mx-auto mb-2"></div>
+                                    <p class="text-sm text-gray-500">Loading preview...</p>
+                                </div>
+                            </div>
+                            <div id="previewError" class="absolute inset-0 bg-gray-100 flex items-center justify-center hidden">
+                                <div class="text-center">
+                                    <span class="text-3xl mb-2 block">⚠️</span>
+                                    <p class="text-sm text-gray-500">Preview not available</p>
+                                    <p class="text-xs text-gray-400 mt-1">The website may block embedding</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Summary -->
+                <div id="summarySection" class="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-xl p-4 border border-purple-200">
+                    <h3 class="text-sm font-semibold text-purple-800 mb-3">📋 Capture Summary</h3>
+                    <div class="grid grid-cols-2 gap-3 text-sm">
+                        <div class="flex items-center space-x-2">
+                            <span class="text-gray-500">Website:</span>
+                            <span id="summaryUrl" class="font-medium text-gray-800 truncate">Not set</span>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <span class="text-gray-500">Mode:</span>
+                            <span id="summaryMode" class="font-medium text-gray-800">🗺️ Sitemap</span>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <span class="text-gray-500">Device:</span>
+                            <span id="summaryDevice" class="font-medium text-gray-800">🖥️ Desktop</span>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <span class="text-gray-500">Max pages:</span>
+                            <span id="summaryMaxPages" class="font-medium text-gray-800">50</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Submit Button -->
+                <button 
+                    type="submit" 
+                    id="submitBtn"
+                    class="w-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-semibold py-3 px-6 rounded-lg hover:from-purple-700 hover:to-indigo-700 transition transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2"
+                >
+                    🚀 Start Capturing
+                </button>
+            </form>
+        </div>
+
+        <!-- Job Status -->
+        <div id="jobStatus" class="max-w-2xl mx-auto card rounded-2xl shadow-2xl p-8 mb-8 hidden">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-xl font-semibold text-gray-800">Capture Progress</h2>
+                <span id="jobId" class="text-sm text-gray-500"></span>
+            </div>
+            
+            <!-- Progress Bar -->
+            <div class="mb-4">
+                <div class="flex justify-between mb-1">
+                    <span id="statusMessage" class="text-sm font-medium text-gray-700">Starting...</span>
+                    <span id="progressPercent" class="text-sm font-medium text-gray-700">0%</span>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-3">
+                    <div id="progressBar" class="bg-gradient-to-r from-purple-600 to-indigo-600 h-3 rounded-full transition-all duration-500" style="width: 0%"></div>
+                </div>
+            </div>
+
+            <!-- Status Indicator -->
+            <div id="statusIndicator" class="flex items-center space-x-3">
+                <div class="spinner"></div>
+                <span class="text-gray-600">Processing...</span>
+            </div>
+
+            <!-- Actions (shown when complete) -->
+            <div id="jobActions" class="hidden mt-6 space-y-3">
+                <button 
+                    id="downloadBtn"
+                    class="w-full bg-green-500 text-white font-semibold py-3 px-6 rounded-lg hover:bg-green-600 transition flex items-center justify-center space-x-2"
+                >
+                    <span>📥</span>
+                    <span>Download All Screenshots (ZIP)</span>
+                </button>
+                <button 
+                    id="newCaptureBtn"
+                    class="w-full bg-gray-200 text-gray-700 font-semibold py-3 px-6 rounded-lg hover:bg-gray-300 transition"
+                >
+                    Start New Capture
+                </button>
+            </div>
+        </div>
+
+        <!-- Screenshots Gallery -->
+        <div id="screenshotsGallery" class="max-w-6xl mx-auto card rounded-2xl shadow-2xl p-8 hidden">
+            <div class="flex items-center justify-between mb-6">
+                <h2 class="text-xl font-semibold text-gray-800">📷 Captured Screenshots</h2>
+                <span id="screenshotCount" class="text-sm text-gray-500"></span>
+            </div>
+            <div id="screenshotsGrid" class="screenshot-grid">
+                <!-- Screenshots will be inserted here -->
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="text-center mt-8 text-xs text-white text-opacity-60">
+            Non-commercial use only · CC BY-NC-ND 4.0
+        </div>
+    </div>
+
+    <!-- Image Modal -->
+    <div id="imageModal" class="modal">
+        <span class="modal-close" onclick="closeModal()">&times;</span>
+        <img id="modalImage" src="" alt="Full Screenshot">
+    </div>
+
+    <script>
+        const socket = io();
+        let currentJobId = null;
+        let previewTimeout = null;
+
+        // Mode and device labels
+        const modeLabels = {
+            sitemap: '🗺️ Sitemap',
+            crawl: '🕷️ Crawl'
+        };
+        const deviceLabels = {
+            desktop: '🖥️ Desktop (1920×1080)',
+            mobile: '📱 Mobile (390×844)',
+            both: '📱🖥️ Both'
+        };
+        const modeDescriptions = {
+            sitemap: "Uses the website's sitemap.xml to find pages. Fast and reliable if available.",
+            crawl: "Crawls the website by following links from the homepage. Works for sites without sitemaps."
+        };
+
+        // Update summary when any input changes
+        function updateSummary() {
+            const url = document.getElementById('url').value.trim();
+            const mode = document.querySelector('input[name="mode"]:checked').value;
+            const device = document.querySelector('input[name="device"]:checked').value;
+            const maxPages = document.getElementById('maxPages').value;
+
+            document.getElementById('summaryUrl').textContent = url || 'Not set';
+            document.getElementById('summaryUrl').title = url || '';
+            document.getElementById('summaryMode').textContent = modeLabels[mode];
+            document.getElementById('summaryDevice').textContent = deviceLabels[device];
+            document.getElementById('summaryMaxPages').textContent = maxPages;
+        }
+
+        // Load website preview
+        function loadPreview(url) {
+            if (!url) {
+                document.getElementById('previewSection').classList.add('hidden');
+                return;
+            }
+
+            // Normalize URL
+            let normalizedUrl = url.trim();
+            if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
+                normalizedUrl = 'https://' + normalizedUrl;
+            }
+
+            // Show preview section
+            document.getElementById('previewSection').classList.remove('hidden');
+            document.getElementById('previewUrl').textContent = normalizedUrl;
+            document.getElementById('previewLoading').classList.remove('hidden');
+            document.getElementById('previewError').classList.add('hidden');
+
+            const iframe = document.getElementById('previewFrame');
+            
+            // Set up load handlers
+            iframe.onload = function() {
+                document.getElementById('previewLoading').classList.add('hidden');
+            };
+            
+            iframe.onerror = function() {
+                document.getElementById('previewLoading').classList.add('hidden');
+                document.getElementById('previewError').classList.remove('hidden');
+            };
+
+            // Try to load the URL
+            iframe.src = normalizedUrl;
+
+            // Timeout fallback - show error if loading takes too long
+            setTimeout(() => {
+                const loading = document.getElementById('previewLoading');
+                if (!loading.classList.contains('hidden')) {
+                    loading.classList.add('hidden');
+                    document.getElementById('previewError').classList.remove('hidden');
+                }
+            }, 8000);
+        }
+
+        // URL input handler with debounce
+        document.getElementById('url').addEventListener('input', (e) => {
+            updateSummary();
+            
+            // Debounce preview loading
+            if (previewTimeout) clearTimeout(previewTimeout);
+            previewTimeout = setTimeout(() => {
+                const url = e.target.value.trim();
+                if (url.length > 3) {
+                    loadPreview(url);
+                } else {
+                    document.getElementById('previewSection').classList.add('hidden');
+                }
+            }, 800);
+        });
+
+        // Mode change handler
+        document.querySelectorAll('input[name="mode"]').forEach(radio => {
+            radio.addEventListener('change', (e) => {
+                document.getElementById('modeDescription').textContent = modeDescriptions[e.target.value];
+                updateSummary();
+            });
+        });
+
+        // Device change handler
+        document.querySelectorAll('input[name="device"]').forEach(radio => {
+            radio.addEventListener('change', updateSummary);
+        });
+
+        // Max pages change handler
+        document.getElementById('maxPages').addEventListener('input', updateSummary);
+
+        // Initialize summary
+        updateSummary();
+
+        // Socket connection
+        socket.on('connect', () => {
+            console.log('Connected to server');
+        });
+
+        socket.on('job_update', (job) => {
+            if (job.id === currentJobId || (currentJobId && currentJobId.includes(job.id))) {
+                updateJobStatus(job);
+            }
+        });
+
+        // Form submission
+        document.getElementById('captureForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const url = document.getElementById('url').value.trim();
+            const maxPages = parseInt(document.getElementById('maxPages').value);
+            const mode = document.querySelector('input[name="mode"]:checked').value;
+            const device = document.querySelector('input[name="device"]:checked').value;
+            
+            if (!url) {
+                alert('Please enter a URL');
+                return;
+            }
+
+            // Disable form
+            document.getElementById('submitBtn').disabled = true;
+            document.getElementById('submitBtn').innerHTML = '<div class="spinner mx-auto"></div>';
+
+            try {
+                // If "both" is selected, we'll run two jobs sequentially
+                if (device === 'both') {
+                    currentJobId = 'both';
+                    showJobStatus({ id: 'both', status: 'running', progress: 0, message: 'Starting desktop capture...' });
+                    
+                    // First: desktop
+                    const desktopResponse = await fetch('/api/jobs', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ url, max_pages: maxPages, mode, device: 'desktop' })
+                    });
+                    const desktopJob = await desktopResponse.json();
+                    socket.emit('subscribe', { job_id: desktopJob.id });
+                    
+                    // Wait for desktop to complete
+                    await waitForJob(desktopJob.id);
+                    
+                    // Then: mobile
+                    updateJobStatus({ id: 'both', status: 'running', progress: 50, message: 'Starting mobile capture...' });
+                    
+                    const mobileResponse = await fetch('/api/jobs', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ url, max_pages: maxPages, mode, device: 'mobile' })
+                    });
+                    const mobileJob = await mobileResponse.json();
+                    currentJobId = `both:${desktopJob.id}:${mobileJob.id}`;
+                    socket.emit('subscribe', { job_id: mobileJob.id });
+                    
+                    // Store job IDs for download
+                    window.bothJobIds = [desktopJob.id, mobileJob.id];
+                    
+                } else {
+                    const response = await fetch('/api/jobs', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ url, max_pages: maxPages, mode, device })
+                    });
+
+                    const job = await response.json();
+                    
+                    if (response.ok) {
+                        currentJobId = job.id;
+                        showJobStatus(job);
+                        socket.emit('subscribe', { job_id: job.id });
+                    } else {
+                        alert(job.error || 'Failed to start capture');
+                        resetForm();
+                    }
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Failed to connect to server');
+                resetForm();
+            }
+        });
+
+        function waitForJob(jobId) {
+            return new Promise((resolve) => {
+                const checkStatus = async () => {
+                    const response = await fetch(`/api/jobs/${jobId}`);
+                    const job = await response.json();
+                    if (job.status === 'completed' || job.status === 'failed') {
+                        resolve(job);
+                    } else {
+                        setTimeout(checkStatus, 1000);
+                    }
+                };
+                checkStatus();
+            });
+        }
+
+        function showJobStatus(job) {
+            document.getElementById('captureForm').classList.add('hidden');
+            document.getElementById('jobStatus').classList.remove('hidden');
+            document.getElementById('jobId').textContent = job.id === 'both' ? 'Desktop + Mobile' : `Job ID: ${job.id}`;
+            updateJobStatus(job);
+        }
+
+        function updateJobStatus(job) {
+            document.getElementById('statusMessage').textContent = job.message;
+            document.getElementById('progressPercent').textContent = `${job.progress}%`;
+            document.getElementById('progressBar').style.width = `${job.progress}%`;
+
+            const statusIndicator = document.getElementById('statusIndicator');
+            const jobActions = document.getElementById('jobActions');
+
+            if (job.status === 'completed') {
+                statusIndicator.innerHTML = `
+                    <span class="text-green-500 text-2xl">✓</span>
+                    <span class="text-green-600 font-medium">Completed successfully!</span>
+                `;
+                jobActions.classList.remove('hidden');
+                
+                // Load screenshots from the right job(s)
+                if (currentJobId && currentJobId.startsWith('both:')) {
+                    const ids = currentJobId.split(':').slice(1);
+                    ids.forEach(id => loadScreenshots(id));
+                } else {
+                    loadScreenshots(job.id);
+                }
+            } else if (job.status === 'failed') {
+                statusIndicator.innerHTML = `
+                    <span class="text-red-500 text-2xl">✗</span>
+                    <span class="text-red-600 font-medium">${job.error || 'Failed'}</span>
+                `;
+                document.getElementById('newCaptureBtn').classList.remove('hidden');
+                document.getElementById('jobActions').classList.remove('hidden');
+                document.getElementById('downloadBtn').classList.add('hidden');
+            } else {
+                statusIndicator.innerHTML = `
+                    <div class="spinner"></div>
+                    <span class="text-gray-600 pulse">Processing...</span>
+                `;
+            }
+        }
+
+        async function loadScreenshots(jobId) {
+            try {
+                const response = await fetch(`/api/jobs/${jobId}/screenshots`);
+                const screenshots = await response.json();
+                
+                if (screenshots.length > 0) {
+                    const gallery = document.getElementById('screenshotsGallery');
+                    const grid = document.getElementById('screenshotsGrid');
+                    const count = document.getElementById('screenshotCount');
+                    
+                    gallery.classList.remove('hidden');
+                    
+                    // Append to existing
+                    const existingCount = grid.children.length;
+                    count.textContent = `${existingCount + screenshots.length} screenshots`;
+                    
+                    grid.innerHTML += screenshots.map(s => `
+                        <div class="screenshot-item" onclick="openModal('${s.url}')">
+                            <img src="${s.url}" alt="${s.filename}" loading="lazy">
+                        </div>
+                    `).join('');
+                }
+            } catch (error) {
+                console.error('Error loading screenshots:', error);
+            }
+        }
+
+        // Download button
+        document.getElementById('downloadBtn').addEventListener('click', () => {
+            if (currentJobId && currentJobId.startsWith('both:') && window.bothJobIds) {
+                // Download both ZIPs
+                for (const id of window.bothJobIds) {
+                    window.open(`/api/jobs/${id}/download`, '_blank');
+                }
+            } else if (currentJobId && !currentJobId.startsWith('both')) {
+                window.location.href = `/api/jobs/${currentJobId}/download`;
+            }
+        });
+
+        // New capture button
+        document.getElementById('newCaptureBtn').addEventListener('click', () => {
+            resetForm();
+            document.getElementById('jobStatus').classList.add('hidden');
+            document.getElementById('screenshotsGallery').classList.add('hidden');
+            document.getElementById('screenshotsGrid').innerHTML = '';
+            document.getElementById('captureForm').classList.remove('hidden');
+            currentJobId = null;
+            window.bothJobIds = null;
+        });
+
+        function resetForm() {
+            document.getElementById('submitBtn').disabled = false;
+            document.getElementById('submitBtn').innerHTML = '🚀 Start Capturing';
+            document.getElementById('jobActions').classList.add('hidden');
+            document.getElementById('downloadBtn').classList.remove('hidden');
+        }
+
+        // Modal functions
+        function openModal(imageUrl) {
+            document.getElementById('modalImage').src = imageUrl;
+            document.getElementById('imageModal').classList.add('active');
+        }
+
+        function closeModal() {
+            document.getElementById('imageModal').classList.remove('active');
+        }
+
+        // Close modal on escape key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closeModal();
+            }
+        });
+
+        // Close modal on background click
+        document.getElementById('imageModal').addEventListener('click', (e) => {
+            if (e.target === document.getElementById('imageModal')) {
+                closeModal();
+            }
+        });
+    </script>
+</body>
+</html>

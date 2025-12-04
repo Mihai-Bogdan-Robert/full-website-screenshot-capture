@@ -1,12 +1,19 @@
-# Runtime dependencies for Full Website Captures (GUI)
+# Runtime dependencies for Full Website Captures (Web App)
 # Pin versions only if you need reproducible builds; current file uses flexible ranges.
 requests>=2.28
 beautifulsoup4>=4.12
 playwright>=1.40
 
+# Web framework dependencies
+flask>=3.0
+flask-socketio>=5.3
+python-socketio>=5.10
+eventlet>=0.35
+gunicorn>=21.0
+
 # Optional / developer tools
 # pyinstaller for building native executables
-pyinstaller>=5.10
+# pyinstaller>=5.10
 # (Optional) packaging helper if you choose nuitka or briefcase
 # nuitka
 # briefcase

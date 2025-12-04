@@ -1,0 +1,49 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv
+venv
+ENV
+env
+*.egg-info
+.installed.cfg
+*.egg
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+*~
+
+# Screenshots (will be mounted as volume)
+screenshots/
+*.zip
+
+# Documentation
+README.md
+LICENSE
+*.md
+
+# Legacy GUI
+gui.py
+gui-screenshot.png
+
+# Development
+*.log
+.env.local
+.env.development
+
+# macOS
+.DS_Store
+
+# Version folders
+Version 1/
+Apps/

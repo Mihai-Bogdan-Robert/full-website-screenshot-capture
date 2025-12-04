@@ -1,100 +1,133 @@
-## Full Website Captures
+# Full Website Captures
 
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)
-![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)
+![License: CC BY-NC-ND 4.0](https://img.shields.io/badge/License-CC%20BY--NC--ND%204.0-lightgrey.svg)
 
-Welcome! This GUI is a lightweight desktop front-end for the Full Website Captures tool. It lets you point the tool at a domain and choose an output folder — then takes full-page screenshots of the pages listed in the sitemap found at that domain.
+A powerful web application that captures full-page screenshots of entire websites. Simply enter a URL and let the app automatically discover and screenshot all pages—perfect for archiving, design reviews, competitive analysis, or documentation.
 
-Below is a screenshot of the current GUI.
+## ✨ Features
 
-![GUI screenshot](gui-screenshot.png)
-
-This README explains how to use the GUI, what the application does under the hood, the libraries and stack it uses, common troubleshooting steps, and options for packaging into a double-clickable executable.
+- 🌐 **Modern Web Interface** — Clean, minimalist dark UI with real-time progress updates
+- 📸 **Full-Page Screenshots** — Captures complete page content including lazy-loaded images
+- 🗺️ **Sitemap Mode** — Fast page discovery using sitemap.xml
+- 🕷️ **Crawl Mode** — Discover pages by following links (works without sitemap)
+- 🖥️📱 **Multi-Viewport** — Capture in desktop (1920×1080), mobile (390×844), or **both at once**
+- 📦 **Batch Download** — Download all screenshots as a ZIP file
+- 🔄 **Real-time Progress** — Live progress bar updates via WebSocket
+- 🖼️ **Gallery View** — Browse captured screenshots in a beautiful grid layout
+- 🐳 **Docker Ready** — Production-ready Docker and Docker Compose configuration
 
 ---
 
-## 🔧 Quick Start — run the GUI
+## 🚀 Quick Start
 
-Recommended: use a virtual environment to avoid dependency conflicts.
+### Prerequisites
+- Python 3.10+
+- pip
+
+### Installation
 
 ```bash
+# Clone the repository
+git clone https://github.com/Mihai-Bogdan-Robert/Full-Website-Captures.git
+cd Full-Website-Captures
+
+# Create virtual environment
 python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip
-# install required libraries (Playwright required if you want screenshots)
-python -m pip install requests beautifulsoup4 playwright
-# install Playwright browser binaries (Chromium recommended)
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Install Playwright browser
 python -m playwright install chromium
 
-# start the GUI (from the repository root)
-python gui.py
+# Start the web server
+python app.py
 ```
 
-Or (no venv):
+Open **http://localhost:5001** in your browser.
+
+---
+
+## 🐳 Docker Deployment
 
 ```bash
-python gui.py
+# Using Docker Compose (recommended)
+docker-compose up --build
+
+# Or using Docker directly
+docker build -t full-website-captures .
+docker run -p 5001:5001 -v $(pwd)/screenshots:/app/screenshots full-website-captures
 ```
 
-The app window will open. Enter a sitemap URL (or a domain; the app will append `/sitemap.xml` if needed), select an output folder, and click Start.
+---
+
+## ▶️ How It Works
+
+1. **Enter URL** — Input any website URL
+2. **Choose Mode** — Sitemap (fast) or Crawl (discovers all links)
+3. **Select Viewport** — Desktop, Mobile, or Both
+4. **Set Limit** — Configure maximum pages to capture
+5. **Start Capture** — Watch real-time progress as pages are captured
+6. **Download** — Get all screenshots as a ZIP file
 
 ---
 
-## ▶️ What the GUI does (user workflow)
+## 📁 Project Structure
 
-- Website domain: enter either the full sitemap URL (for example `https://example.com/sitemap.xml`) or a bare domain like `example.com` (the app will normalize this into `https://example.com/sitemap.xml`).
-- Output Folder: browse to or create a folder where screenshots will be saved.
-- Start: begins the process. The GUI will run the capture logic in a background thread so the UI stays responsive. A status bar and spinner indicate activity.
-
-When finished a small pop-up will indicate how many screenshots were saved and the output folder.
-
----
-
-## 🧠 Internals — how it works
-
-- The GUI is implemented with Tkinter and ttk for a native, lightweight desktop UI (`gui.py`).
-- The screenshot and sitemap logic is in `main.py` and is callable programmatically as `main.main(folder, url)`.
-- Sitemap parsing: a simple XML parser extracts `<loc>` entries from a sitemap.xml and returns a de-duplicated list of page URLs.
-- Screenshotting: uses Playwright (Chromium) to open each URL in a headless browser, waits for network idle and attempts to trigger lazy-loaded images by scrolling the page before taking a full-page screenshot.
-- Filenames: screenshots are named by the page title (sanitized) with hyphen separators, prefixed by a zero-padded index (for example `007-Optik.png`). If a title becomes empty, a short fallback name can be used (this is easily configurable).
+```
+├── app.py              # Flask web application with WebSocket support
+├── main.py             # Core screenshot & crawling functionality
+├── gui.py              # Legacy desktop GUI (tkinter)
+├── templates/
+│   └── index.html      # Modern dark-theme web interface
+├── screenshots/        # Output directory for captures
+├── Dockerfile          # Container configuration
+├── docker-compose.yml  # Docker Compose setup
+└── requirements.txt    # Python dependencies
+```
 
 ---
 
-## 🧩 Libraries and stack
+## 🧩 Tech Stack
 
-- Python 3 — app language.
-- Tkinter (ttk) — GUI toolkit (standard in most system Pythons).
-- Playwright (Python) — browser automation used for rendering pages and taking screenshots. Playwright downloads platform-specific browser binaries (Chromium, Firefox, WebKit) which must be installed with `playwright install`.
-- requests — HTTP fetching for sitemap.xml.
-- BeautifulSoup (bs4) — optional HTML parsing (used in some helper code paths).
-- xml.etree.ElementTree — built-in XML parser used to read sitemap.xml.
+- **Flask** + **Flask-SocketIO** — Web framework with real-time updates
+- **Playwright** — Headless browser automation
+- **TailwindCSS** — Modern utility-first CSS
+- **BeautifulSoup** — HTML parsing for crawl mode
 
 ---
 
-## 📦 Packaging into a double-clickable app
+## ⚙️ Configuration Options
 
-Short version: use PyInstaller to produce a native executable on each target platform. See `README` in the repo root for extra resources about shipping browsers. Key points:
-
-- Build on the target OS where possible (Windows build on Windows, macOS on macOS, etc.).
-- Bundle Playwright browser artifacts or run a small first-run step that installs browsers via Playwright.
-- Prefer `--onedir` distribution for ease when bundling large browser files (copy the browsers folder next to the app executable).
-
-If you want I can add a `build.sh` that automates the virtualenv creation, Playwright browser install, and PyInstaller invocation.
+| Option | Values | Description |
+|--------|--------|-------------|
+| Mode | Sitemap / Crawl | Page discovery method |
+| Viewport | Desktop / Mobile / Both | Screenshot dimensions |
+| Max Pages | 1-500 | Limit number of captures |
 
 ---
 
-## 🛠️ Troubleshooting
+## 📄 License
 
-- "requests module not found" — often this means the script is running under a different Python interpreter than the one where you installed packages. Make sure your virtualenv is activated and run `which python` and `python -m pip show requests` to confirm.
-- Playwright errors or missing browsers — run `python -m playwright install chromium` to fetch the Chromium binaries. If distributing, be sure Playwright's browsers are available in the packaged app or instruct users to run the install.
-- Partially-loaded images in screenshots — the app attempts to auto-scroll and wait for images, but some sites use advanced lazy-loading; increasing the timeout in `main.py` or adding a retry/pause often helps.
+This project is licensed under **CC BY-NC-ND 4.0** (Creative Commons Attribution-NonCommercial-NoDerivatives).
+
+**You may:**
+- ✅ Use this software for personal, non-commercial purposes
+- ✅ Share the software with proper attribution
+
+**You may NOT:**
+- ❌ Sell this software or use it commercially
+- ❌ Use it in any commercial product or service
+- ❌ Distribute modified versions
+
+See [LICENSE](LICENSE) for full details.
 
 ---
 
-## 🛠️ Developer notes & extensibility
+## 👤 Author
 
-- Progress updates: the GUI runs the capture in a background thread and shows an indeterminate spinner. For finer feedback (page X of Y), we can add a simple callback mechanism or a thread-safe queue to send per-page progress events from `main.py` to the GUI.
-- Cancellation: adding a Cancel button requires exposing a stop flag to the Playwright loop and closing the browser context cleanly.
-- Filename collisions: the code already appends a numeric suffix if a file exists; we can instead add a short content or URL hash for guaranteed uniqueness.
+**Mihai-Bogdan-Robert**
 
----
+For commercial licensing inquiries, please contact the author.
