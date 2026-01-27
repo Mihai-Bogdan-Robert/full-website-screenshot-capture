@@ -59,9 +59,9 @@ RUN playwright install chromium && \
 COPY main.py .
 COPY app.py .
 COPY templates/ templates/
+COPY static/ static/
 
-# Create screenshots directory
-RUN mkdir -p screenshots
+# Note: Screenshots are now stored client-side in browser, no server storage needed
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1

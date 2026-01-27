@@ -1,19 +1,13 @@
-version: '3.8'
-
 services:
   web:
     build: .
     container_name: full-website-captures
     ports:
       - "5001:5001"
-    volumes:
-      # Persist screenshots outside container
-      - ./screenshots:/app/screenshots
     environment:
       - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
       - PYTHONUNBUFFERED=1
     restart: unless-stopped
-    # Resource limits (adjust based on your needs)
     deploy:
       resources:
         limits:

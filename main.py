@@ -7,6 +7,7 @@ Usage:
 
 This script crawls the given starting URL's domain, respects robots.txt,
 takes full-page screenshots with Playwright, and saves them to output_folder.
+Supports streaming screenshots via callback for browser-side storage.
 """
 
 import sys
@@ -15,6 +16,7 @@ import time
 import queue
 import logging
 import requests
+import base64
 import xml.etree.ElementTree as ET
 from urllib.parse import urlparse, urljoin, urldefrag
 from bs4 import BeautifulSoup
@@ -50,17 +52,177 @@ DEVICE_CONFIGS = {
     }
 }
 
+#-----------------------COOKIE BANNER HANDLING---------------------------------
+
+# Common cookie consent button selectors
+COOKIE_SELECTORS = [
+    # Generic accept buttons (text-based)
+    "button:has-text('Accept')",
+    "button:has-text('Accept all')",
+    "button:has-text('Accept All')",
+    "button:has-text('Accept cookies')",
+    "button:has-text('Accept Cookies')",
+    "button:has-text('I Accept')",
+    "button:has-text('I agree')",
+    "button:has-text('I Agree')",
+    "button:has-text('Agree')",
+    "button:has-text('OK')",
+    "button:has-text('Got it')",
+    "button:has-text('Allow')",
+    "button:has-text('Allow all')",
+    "button:has-text('Allow All')",
+    "button:has-text('Continue')",
+    "button:has-text('Consent')",
+    
+    # Romanian cookie banners
+    "button:has-text('Acceptă')",
+    "button:has-text('Accepta')",
+    "button:has-text('Accept toate')",
+    "button:has-text('Acceptă tot')",
+    "button:has-text('Sunt de acord')",
+    "button:has-text('De acord')",
+    "button:has-text('Înțeleg')",
+    "button:has-text('Inteleg')",
+    
+    # German
+    "button:has-text('Akzeptieren')",
+    "button:has-text('Alle akzeptieren')",
+    "button:has-text('Zustimmen')",
+    
+    # French
+    "button:has-text('Accepter')",
+    "button:has-text('Tout accepter')",
+    "button:has-text('J'accepte')",
+    
+    # Spanish
+    "button:has-text('Aceptar')",
+    "button:has-text('Aceptar todo')",
+    
+    # Common ID/class selectors
+    "#onetrust-accept-btn-handler",
+    "#accept-cookies",
+    "#accept-all-cookies",
+    "#cookie-accept",
+    "#cookies-accept",
+    "#cookieAccept",
+    "#acceptCookies",
+    "#gdpr-accept",
+    "#consent-accept",
+    ".cookie-accept",
+    ".accept-cookies",
+    ".cookie-consent-accept",
+    "[data-action='accept']",
+    "[data-consent='accept']",
+    "[data-cookie-accept]",
+    
+    # CookieBot
+    "#CybotCookiebotDialogBodyLevelButtonLevelOptinAllowAll",
+    "#CybotCookiebotDialogBodyButtonAccept",
+    
+    # Quantcast
+    ".qc-cmp2-summary-buttons button:first-child",
+    
+    # Generic link-based accept
+    "a:has-text('Accept')",
+    "a:has-text('Accept all')",
+    "a:has-text('I agree')",
+    
+    # Close/dismiss buttons
+    ".cookie-close",
+    ".cookie-dismiss",
+    "[aria-label='Close cookie banner']",
+    "[aria-label='Accept cookies']",
+]
+
+def dismiss_cookie_banners(page, timeout=3000):
+    """
+    Attempts to dismiss cookie consent banners by clicking accept buttons.
+    """
+    for selector in COOKIE_SELECTORS:
+        try:
+            element = page.locator(selector).first
+            if element.is_visible(timeout=200):
+                element.click(timeout=1000)
+                logger.info(f"   🍪 Dismissed cookie banner with: {selector}")
+                # Wait a bit for the banner to disappear
+                time.sleep(0.5)
+                return True
+        except Exception:
+            continue
+    
+    # Also try to remove common overlay elements via JavaScript
+    try:
+        page.evaluate("""
+            () => {
+                // Common cookie banner container selectors
+                const bannerSelectors = [
+                    '#onetrust-consent-sdk',
+                    '#cookie-banner',
+                    '#cookie-notice',
+                    '#gdpr-banner',
+                    '.cookie-banner',
+                    '.cookie-notice',
+                    '.gdpr-banner',
+                    '.consent-banner',
+                    '[class*="cookie-consent"]',
+                    '[class*="cookie-banner"]',
+                    '[id*="cookie-consent"]',
+                    '[id*="cookie-banner"]',
+                ];
+                
+                bannerSelectors.forEach(selector => {
+                    const elements = document.querySelectorAll(selector);
+                    elements.forEach(el => {
+                        if (el) el.style.display = 'none';
+                    });
+                });
+                
+                // Remove any overlay/backdrop
+                const overlays = document.querySelectorAll('[class*="overlay"], [class*="backdrop"]');
+                overlays.forEach(el => {
+                    const style = window.getComputedStyle(el);
+                    if (style.position === 'fixed' && parseFloat(style.opacity) > 0.3) {
+                        el.style.display = 'none';
+                    }
+                });
+                
+                // Re-enable scrolling on body
+                document.body.style.overflow = 'auto';
+                document.documentElement.style.overflow = 'auto';
+            }
+        """)
+    except Exception:
+        pass
+    
+    return False
+
 #-----------------------SCREENSHOT FUNCTIONALITY-------------------------------
 
-def screenshot_urls(urls, folder, start_index=0, max_pages=None, headless=True, user_agent=None, device='desktop', progress_callback=None):
+def screenshot_urls(urls, folder=None, start_index=0, max_pages=None, headless=True, user_agent=None, device='desktop', progress_callback=None, screenshot_callback=None, cancel_check=None):
     """
     Takes screenshots of the given URLs using Playwright.
 
     Filenames are created from the page <title>, sanitized for filesystem safety.
+    
+    Args:
+        urls: List of URLs to capture
+        folder: Output folder for screenshots (optional if screenshot_callback is provided)
+        start_index: Starting index
+        max_pages: Maximum number of pages to capture
+        headless: Run browser headless
+        user_agent: Custom user agent
+        device: 'desktop' or 'mobile'
+        progress_callback: Callback for progress updates
+        screenshot_callback: If provided, sends (filename, base64_data) instead of saving to disk
+        cancel_check: Optional callback() that returns True if job should be cancelled
+    
     Returns a dict with counts, failed URLs and saved file paths.
     """
-    os.makedirs(folder, exist_ok=True)
-    # total: number of successful screenshots saved
+    # Only create folder if we're saving to disk
+    if folder and not screenshot_callback:
+        os.makedirs(folder, exist_ok=True)
+    
+    # total: number of successful screenshots
     total = 0
     failed = 0
     failed_urls = []
@@ -94,8 +256,12 @@ def screenshot_urls(urls, folder, start_index=0, max_pages=None, headless=True, 
 
     # 'used' keeps track of generated filenames during this run so we can avoid collisions when two pages produce the same title.
 
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=headless)
+    # Manually manage playwright to avoid blocking on context manager exit
+    from playwright.sync_api import sync_playwright
+    playwright_instance = sync_playwright().start()
+    
+    try:
+        browser = playwright_instance.chromium.launch(headless=headless)
         
         # Create context with device-specific settings
         context_options = {
@@ -122,22 +288,47 @@ def screenshot_urls(urls, folder, start_index=0, max_pages=None, headless=True, 
         total_urls = min(len(urls[start_index:]), max_pages)
 
         for idx, url in enumerate(urls[start_index:], start=start_index):
+            # Check for cancellation
+            if cancel_check and cancel_check():
+                logger.info("⚠️ Job cancelled by user")
+                break
+            
             if total >= max_pages:
                 break
             try:
                 # Calculate progress: 50% to 95% for screenshots
                 if progress_callback and total_urls > 0:
-                    screenshot_progress = 50 + int((total / total_urls) * 45)
-                    progress_callback(f'Capturing page {total+1}/{total_urls}...', screenshot_progress)
+                    screenshot_progress = 50 + int ((total / total_urls) * 45)
+                    progress_callback(f'📸 Capturing screenshot {total+1}/{total_urls}...', screenshot_progress)
                 
                 logger.info(f"🌐 [{total+1}/{max_pages}] Visiting: {url}")
-                # We wait for network to be idle and use a generous timeout (20s) for slower pages
-                page.goto(url, timeout=20000)
-
-                page.wait_for_load_state('networkidle', timeout=5000)
                 
-                # Initial wait after page load for JavaScript to initialize
-                time.sleep(1.5)
+                # Navigate with aggressive timeout - use 'commit' which is fastest
+                # This waits only for navigation to commit, not for page to fully load
+                try:
+                    page.goto(url, timeout=20000, wait_until='commit')
+                    # Give more time for initial page elements to load
+                    time.sleep(1.5)
+                except Exception as nav_error:
+                    logger.warning(f"   ⚠️  Navigation error, trying fallback: {nav_error}")
+                    # Try one more time with even more aggressive settings
+                    try:
+                        page.goto(url, timeout=10000, wait_until='commit')
+                    except Exception:
+                        logger.error(f"   ❌ Failed to load page, skipping")
+                        failed += 1
+                        failed_urls.append(url)
+                        continue
+                
+                # Don't wait for network idle - it often never happens
+                # Wait longer for the page to render and images to load
+                time.sleep(3.0)
+                
+                # Try to dismiss cookie banners and popups
+                try:
+                    dismiss_cookie_banners(page)
+                except Exception as cookie_error:
+                    logger.debug(f"   Cookie banner dismissal: {cookie_error}")
 
                 # Try to trigger lazy-loaded images by scrolling the page slowly
                 # and then wait until all <img> elements report they are complete
@@ -147,34 +338,38 @@ def screenshot_urls(urls, folder, start_index=0, max_pages=None, headless=True, 
                     page.evaluate("""
                     async () => {
                         const distance = 400;
-                        const delay = 150; // ms - slightly longer delay for content to load
+                        const delay = 300; // ms - increased for slower animations
                         const el = document.scrollingElement || document.documentElement;
-                        while (el.scrollTop + window.innerHeight < el.scrollHeight) {
+                        const maxScrolls = 20; // limit scrolling to prevent hanging
+                        let scrollCount = 0;
+                        while (el.scrollTop + window.innerHeight < el.scrollHeight && scrollCount < maxScrolls) {
                             el.scrollBy(0, distance);
                             await new Promise(r => setTimeout(r, delay));
+                            scrollCount++;
                         }
                         // one final scroll to bottom
                         el.scrollTop = el.scrollHeight;
-                        // pause at bottom to let lazy-load handlers run
-                        await new Promise(r => setTimeout(r, 500));
+                        // longer pause at bottom for animations
+                        await new Promise(r => setTimeout(r, 1000));
                         // return to top
                         window.scrollTo(0, 0);
                         return true;
                     }
                     """)
 
-                    # Wait until all images are either complete or there are no images.
-                    # This avoids taking screenshots while images are mid-download.
+                    # Wait for images to fully load
                     page.wait_for_function(
                         "() => { const imgs = Array.from(document.images); if (!imgs.length) return true; return imgs.every(i => i.complete && (i.naturalWidth > 0 || !i.src)); }",
-                        timeout=10000,
+                        timeout=5000,  # Increased to 5s for better image loading
                     )
                 except Exception as e:
                     # Non-fatal: if scrolling or the wait fails, proceed to screenshot anyway.
-                    logger.warning(f"   ⚠️  Image-ready wait failed (continuing anyway): {e}")
+                    logger.debug(f"   ⚠️  Image-ready wait failed (continuing): {str(e)[:50]}")
 
-                # Final wait after scrolling to ensure all animations/transitions complete
-                time.sleep(1.0)
+                # Ensure we're at the top of the page before screenshot
+                page.evaluate("window.scrollTo(0, 0)")
+                # Wait longer for scroll and animations to complete
+                time.sleep(2.0)
 
                 # read <title> from the page, if Playwright fails to get it fall back to empty string
                 try:
@@ -189,18 +384,26 @@ def screenshot_urls(urls, folder, start_index=0, max_pages=None, headless=True, 
                 n = 1
 
                 # Filename conflicts
-                while filename in used or os.path.exists(os.path.join(folder, filename)):
+                while filename in used:
                     filename = f"{base}_{n}.png"
                     n += 1
 
-                fullpath = os.path.join(folder, filename)
-
-                # capture and save the screenshot with full_page=True
+                # capture the screenshot with full_page=True
                 try:
-                    page.screenshot(path=fullpath, full_page=True)
-                    logger.info(f"   📸 Screenshot saved: {filename}")
+                    if screenshot_callback:
+                        # Stream screenshot as base64 to browser
+                        screenshot_bytes = page.screenshot(full_page=True)
+                        screenshot_base64 = base64.b64encode(screenshot_bytes).decode('utf-8')
+                        screenshot_callback(filename, screenshot_base64)
+                        logger.info(f"   📸 Screenshot streamed: {filename}")
+                    else:
+                        # Save to disk
+                        fullpath = os.path.join(folder, filename)
+                        page.screenshot(path=fullpath, full_page=True)
+                        logger.info(f"   📸 Screenshot saved: {filename}")
+                        saved_files.append(fullpath)
+                    
                     total += 1
-                    saved_files.append(fullpath)
                     used.add(filename)
                 except Exception as e:
                     logger.error(f"   ❌ Screenshot failed: {e}")
@@ -213,11 +416,18 @@ def screenshot_urls(urls, folder, start_index=0, max_pages=None, headless=True, 
                 failed_urls.append(url)
 
         try:
+            logger.info(f"🧹 Cleaning up browser resources...")
             context.close()
             browser.close()
-        except:
-            pass
-
+            logger.info(f"✅ Browser closed successfully")
+        except Exception as e:
+            logger.warning(f"⚠️  Browser cleanup error (non-fatal): {e}")
+    
+    finally:
+        # Note: We skip calling playwright_instance.stop() because it hangs indefinitely
+        # The Playwright instance will be cleaned up when the process exits.
+        # This was causing 10+ second delays in job completion.
+        logger.info(f"✅ Job completed: {total} screenshots, {failed} failed")
     return { 'screenshots': total, 'failed': failed, 'failed_urls': failed_urls, 'saved': saved_files, 'out_dir': folder }
 
 #-----------------------URL EXTRACTION FROM SITEMAP XML-----------------------
@@ -418,7 +628,7 @@ def crawl_website(start_url, max_pages=200, delay=0.5, respect_robots=True, prog
             if progress_callback:
                 progress_callback(len(discovered), len(to_visit), normalized)
             
-            logger.info(f"🔍 [{len(discovered)+1}/{max_pages}] Crawling: {normalized}")
+            logger.info(f"🔍 [{len(discovered)+1}/{max_pages}] Discovering: {normalized}")
             
             # Fetch the page
             resp = requests.get(
@@ -493,17 +703,18 @@ def build_url(unparsed_url):
 
 #------------------------------------------------------------------------------
 
-def main(folder, url, max_pages=200, delay=1.0, headless=True, user_agent=None, mode='sitemap', device='desktop', progress_callback=None):
+def main(url, folder=None, max_pages=200, delay=1.0, headless=True, user_agent=None, mode='sitemap', device='desktop', progress_callback=None, screenshot_callback=None, cancel_check=None):
     """
     Usage:
         import main
-        result = main.main(folder, url)
-        result = main.main(folder, url, mode='crawl')  # Use crawler instead of sitemap
-        result = main.main(folder, url, device='mobile')  # Mobile viewport
+        result = main.main(url, folder=folder)
+        result = main.main(url, mode='crawl')  # Use crawler instead of sitemap
+        result = main.main(url, device='mobile')  # Mobile viewport
+        result = main.main(url, screenshot_callback=my_callback)  # Stream to browser
 
     Args:
-        folder: Output folder for screenshots
         url: Website URL or sitemap URL
+        folder: Output folder for screenshots (optional if screenshot_callback is provided)
         max_pages: Maximum number of pages to capture
         delay: Delay between requests
         headless: Run browser in headless mode
@@ -511,8 +722,10 @@ def main(folder, url, max_pages=200, delay=1.0, headless=True, user_agent=None, 
         mode: 'sitemap' (default) or 'crawl'
         device: 'desktop' (default) or 'mobile'
         progress_callback: Optional callback(message, percent) for progress updates
+        screenshot_callback: Optional callback(filename, base64_data) to stream screenshots
+        cancel_check: Optional callback() that returns True if job should be cancelled
 
-    Returns a dict: { 'screenshots': int, 'out_dir': str, 'urls_found': int }
+    Returns a dict: { 'screenshots': int, 'urls_found': int }
     """
     
     urls = []
@@ -522,9 +735,17 @@ def main(folder, url, max_pages=200, delay=1.0, headless=True, user_agent=None, 
         logger.info("🕷️ Using CRAWL mode to discover pages")
         if progress_callback:
             progress_callback('Crawling website to discover pages...', 20)
-        urls = crawl_website(url, max_pages=max_pages, delay=0.5)
+        
+        # Create a crawl progress callback that updates the main progress
+        def crawl_progress(discovered_count, queued_count, current_url):
+            if progress_callback:
+                # Calculate progress: 20% to 50% during crawl phase
+                pct = 20 + int((discovered_count / max_pages) * 30) if max_pages > 0 else 20
+                progress_callback(f'🕷️ Crawling pages... ({discovered_count}/{max_pages} found)', min(pct, 49))
+        
+        urls = crawl_website(url, max_pages=max_pages, delay=0.5, progress_callback=crawl_progress)
         if progress_callback:
-            progress_callback(f'Found {len(urls)} pages, starting screenshots...', 50)
+            progress_callback(f'✅ Crawled {len(urls)} pages, starting screenshots...', 50)
     else:
         #-----------------------SITEMAP MODE: Parse sitemap XML--------------------
         logger.info("📋 Using SITEMAP mode to parse sitemap")
@@ -535,7 +756,7 @@ def main(folder, url, max_pages=200, delay=1.0, headless=True, user_agent=None, 
         try:
             urls = parse_sitemap(sitemap_url)
             if progress_callback:
-                progress_callback(f'Found {len(urls)} pages, starting screenshots...', 50)
+                progress_callback(f'📋 Found {len(urls)} pages in sitemap, starting screenshots...', 50)
         except Exception as e:
             logger.error(f"❌ Sitemap parsing failed: {e}")
             raise
@@ -547,7 +768,18 @@ def main(folder, url, max_pages=200, delay=1.0, headless=True, user_agent=None, 
         urls = urls[:max_pages]
 
     #-------------------------SCREENSHOT URLs--------------------------------------
-    result = screenshot_urls(urls, folder, start_index=0, max_pages=max_pages, headless=headless, user_agent=user_agent, device=device, progress_callback=progress_callback)
+    result = screenshot_urls(
+        urls, 
+        folder=folder, 
+        start_index=0, 
+        max_pages=max_pages, 
+        headless=headless, 
+        user_agent=user_agent, 
+        device=device, 
+        progress_callback=progress_callback,
+        screenshot_callback=screenshot_callback,
+        cancel_check=cancel_check
+    )
     
     # Add urls_found to result
     result['urls_found'] = urls_found

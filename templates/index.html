@@ -6,102 +6,26 @@
     <title>Full Website Captures</title>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
-    <style>
-        .gradient-bg {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            background-image: 
-                linear-gradient(135deg, #667eea 0%, #764ba2 100%),
-                url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
-            background-blend-mode: overlay;
-        }
-        .card {
-            backdrop-filter: blur(10px);
-            background: rgba(255, 255, 255, 0.95);
-        }
-        .screenshot-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-            gap: 1rem;
-        }
-        .screenshot-item {
-            aspect-ratio: 9/16;
-            overflow: hidden;
-            border-radius: 0.5rem;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            cursor: pointer;
-            transition: transform 0.2s, box-shadow 0.2s;
-        }
-        .screenshot-item:hover {
-            transform: translateY(-4px);
-            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
-        }
-        .screenshot-item img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            object-position: top;
-        }
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.9);
-            z-index: 1000;
-            overflow: auto;
-        }
-        .modal.active {
-            display: flex;
-            align-items: flex-start;
-            justify-content: center;
-            padding: 2rem;
-        }
-        .modal img {
-            max-width: 100%;
-            height: auto;
-        }
-        .modal-close {
-            position: fixed;
-            top: 1rem;
-            right: 1rem;
-            color: white;
-            font-size: 2rem;
-            cursor: pointer;
-            z-index: 1001;
-        }
-        .spinner {
-            border: 3px solid #f3f3f3;
-            border-top: 3px solid #667eea;
-            border-radius: 50%;
-            width: 24px;
-            height: 24px;
-            animation: spin 1s linear infinite;
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        .pulse {
-            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-        }
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: .5; }
-        }
-    </style>
+    <!-- JSZip for client-side ZIP generation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <!-- FileSaver for downloading the ZIP -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <!-- Custom styles -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body class="min-h-screen gradient-bg">
-    <div class="container mx-auto px-4 py-8">
+    <div class="container mx-auto px-4 py-4">
         <!-- Header -->
-        <div class="text-center mb-8">
-            <h1 class="text-4xl font-bold text-white mb-2">📸 Full Website Captures</h1>
+        <div class="text-center mb-4">
+            <div class="flex items-center justify-center gap-3 mb-2">
+                <img src="https://bammedia.ro/wp-content/uploads/Logo_Transparent_72ppi_alb-e1709379608361.png" alt="BAM Media" class="h-12 w-15" style="object-fit: contain;">
+                <h1 class="text-4xl font-bold text-white">Full Website Captures</h1>
+            </div>
             <p class="text-white text-opacity-80">Capture full-page screenshots of entire websites</p>
         </div>
 
         <!-- Main Card -->
-        <div class="max-w-2xl mx-auto card rounded-2xl shadow-2xl p-8 mb-8">
+        <div class="w-[85%] mx-auto card rounded-2xl shadow-2xl p-8 mb-4">
             <form id="captureForm" class="space-y-6">
                 <!-- URL Input -->
                 <div>
@@ -113,7 +37,7 @@
                         id="url" 
                         name="url" 
                         placeholder="https://example.com"
-                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition"
+                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-#2fbbb8 focus:border-transparent transition"
                         required
                     >
                 </div>
@@ -126,15 +50,15 @@
                     <div class="grid grid-cols-2 gap-4">
                         <label class="relative cursor-pointer">
                             <input type="radio" name="mode" value="sitemap" checked class="peer sr-only">
-                            <div class="p-4 border-2 border-gray-200 rounded-xl peer-checked:border-purple-600 peer-checked:bg-purple-100 peer-checked:shadow-md hover:border-gray-300 transition-all">
+                            <div class="p-4 border-2 border-gray-200 rounded-xl peer-checked:border-#2fbbb8 peer-checked:bg-#2fbbb8 peer-checked:shadow-md hover:border-gray-300 transition-all">
                                 <div class="flex items-center space-x-3">
                                     <span class="text-2xl">🗺️</span>
                                     <div>
-                                        <div class="font-semibold text-gray-800 peer-checked:text-purple-800">Sitemap</div>
+                                        <div class="font-semibold text-gray-800">Sitemap</div>
                                         <div class="text-xs text-gray-500">Use sitemap.xml</div>
                                     </div>
                                 </div>
-                                <div class="absolute top-2 right-2 w-5 h-5 rounded-full border-2 border-gray-300 peer-checked:border-purple-600 peer-checked:bg-purple-600 flex items-center justify-center opacity-0 peer-checked:opacity-100 transition-opacity">
+                                <div class="absolute top-2 right-2 w-5 h-5 rounded-full border-2 border-gray-300 peer-checked:border-#2fbbb8 peer-checked:bg-#2fbbb8 flex items-center justify-center opacity-0 peer-checked:opacity-100 transition-opacity">
                                     <svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
                                         <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
                                     </svg>
@@ -143,15 +67,15 @@
                         </label>
                         <label class="relative cursor-pointer">
                             <input type="radio" name="mode" value="crawl" class="peer sr-only">
-                            <div class="p-4 border-2 border-gray-200 rounded-xl peer-checked:border-purple-600 peer-checked:bg-purple-100 peer-checked:shadow-md hover:border-gray-300 transition-all">
+                            <div class="p-4 border-2 border-gray-200 rounded-xl peer-checked:border-#2fbbb8 peer-checked:bg-#2fbbb8 peer-checked:shadow-md hover:border-gray-300 transition-all">
                                 <div class="flex items-center space-x-3">
                                     <span class="text-2xl">🕷️</span>
                                     <div>
-                                        <div class="font-semibold text-gray-800 peer-checked:text-purple-800">Crawl</div>
+                                        <div class="font-semibold text-gray-800">Crawl</div>
                                         <div class="text-xs text-gray-500">Discover all links</div>
                                     </div>
                                 </div>
-                                <div class="absolute top-2 right-2 w-5 h-5 rounded-full border-2 border-gray-300 peer-checked:border-purple-600 peer-checked:bg-purple-600 flex items-center justify-center opacity-0 peer-checked:opacity-100 transition-opacity">
+                                <div class="absolute top-2 right-2 w-5 h-5 rounded-full border-2 border-gray-300 peer-checked:border-#2fbbb8 peer-checked:bg-#2fbbb8 flex items-center justify-center opacity-0 peer-checked:opacity-100 transition-opacity">
                                     <svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
                                         <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
                                     </svg>
@@ -172,7 +96,7 @@
                     <div class="grid grid-cols-3 gap-4">
                         <label class="relative cursor-pointer">
                             <input type="radio" name="device" value="desktop" checked class="peer sr-only">
-                            <div class="p-4 border-2 border-gray-200 rounded-xl peer-checked:border-purple-600 peer-checked:bg-purple-100 peer-checked:shadow-md hover:border-gray-300 transition-all">
+                            <div class="p-4 border-2 border-gray-200 rounded-xl peer-checked:border-#2fbbb8 peer-checked:bg-#2fbbb8 peer-checked:shadow-md hover:border-gray-300 transition-all">
                                 <div class="flex items-center space-x-3">
                                     <span class="text-2xl">🖥️</span>
                                     <div>
@@ -180,7 +104,7 @@
                                         <div class="text-xs text-gray-500">1920×1080</div>
                                     </div>
                                 </div>
-                                <div class="absolute top-2 right-2 w-5 h-5 rounded-full border-2 border-gray-300 peer-checked:border-purple-600 peer-checked:bg-purple-600 flex items-center justify-center opacity-0 peer-checked:opacity-100 transition-opacity">
+                                <div class="absolute top-2 right-2 w-5 h-5 rounded-full border-2 border-gray-300 peer-checked:border-#2fbbb8 peer-checked:bg-#2fbbb8 flex items-center justify-center opacity-0 peer-checked:opacity-100 transition-opacity">
                                     <svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
                                         <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
                                     </svg>
@@ -189,7 +113,7 @@
                         </label>
                         <label class="relative cursor-pointer">
                             <input type="radio" name="device" value="mobile" class="peer sr-only">
-                            <div class="p-4 border-2 border-gray-200 rounded-xl peer-checked:border-purple-600 peer-checked:bg-purple-100 peer-checked:shadow-md hover:border-gray-300 transition-all">
+                            <div class="p-4 border-2 border-gray-200 rounded-xl peer-checked:border-#2fbbb8 peer-checked:bg-#2fbbb8 peer-checked:shadow-md hover:border-gray-300 transition-all">
                                 <div class="flex items-center space-x-3">
                                     <span class="text-2xl">📱</span>
                                     <div>
@@ -197,7 +121,7 @@
                                         <div class="text-xs text-gray-500">390×844</div>
                                     </div>
                                 </div>
-                                <div class="absolute top-2 right-2 w-5 h-5 rounded-full border-2 border-gray-300 peer-checked:border-purple-600 peer-checked:bg-purple-600 flex items-center justify-center opacity-0 peer-checked:opacity-100 transition-opacity">
+                                <div class="absolute top-2 right-2 w-5 h-5 rounded-full border-2 border-gray-300 peer-checked:border-#2fbbb8 peer-checked:bg-#2fbbb8 flex items-center justify-center opacity-0 peer-checked:opacity-100 transition-opacity">
                                     <svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
                                         <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
                                     </svg>
@@ -206,7 +130,7 @@
                         </label>
                         <label class="relative cursor-pointer">
                             <input type="radio" name="device" value="both" class="peer sr-only">
-                            <div class="p-4 border-2 border-gray-200 rounded-xl peer-checked:border-purple-600 peer-checked:bg-purple-100 peer-checked:shadow-md hover:border-gray-300 transition-all">
+                            <div class="p-4 border-2 border-gray-200 rounded-xl peer-checked:border-#2fbbb8 peer-checked:bg-#2fbbb8 peer-checked:shadow-md hover:border-gray-300 transition-all">
                                 <div class="flex items-center space-x-3">
                                     <span class="text-2xl">📱🖥️</span>
                                     <div>
@@ -214,7 +138,7 @@
                                         <div class="text-xs text-gray-500">All sizes</div>
                                     </div>
                                 </div>
-                                <div class="absolute top-2 right-2 w-5 h-5 rounded-full border-2 border-gray-300 peer-checked:border-purple-600 peer-checked:bg-purple-600 flex items-center justify-center opacity-0 peer-checked:opacity-100 transition-opacity">
+                                <div class="absolute top-2 right-2 w-5 h-5 rounded-full border-2 border-gray-300 peer-checked:border-#2fbbb8 peer-checked:bg-#2fbbb8 flex items-center justify-center opacity-0 peer-checked:opacity-100 transition-opacity">
                                     <svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
                                         <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
                                     </svg>
@@ -236,7 +160,7 @@
                         value="50"
                         min="1"
                         max="500"
-                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition"
+                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-#2fbbb8 focus:border-transparent transition"
                     >
                     <p class="mt-1 text-sm text-gray-500">Limit the number of pages to screenshot (1-500)</p>
                 </div>
@@ -255,7 +179,7 @@
                             </div>
                             <div class="flex-1 bg-white rounded px-3 py-1 text-xs text-gray-600 truncate" id="previewUrl"></div>
                         </div>
-                        <div class="relative" style="height: 200px;">
+                        <div class="relative" style="height: 700px;">
                             <iframe 
                                 id="previewFrame" 
                                 class="w-full h-full border-0"
@@ -279,9 +203,9 @@
                 </div>
 
                 <!-- Summary -->
-                <div id="summarySection" class="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-xl p-4 border border-purple-200">
-                    <h3 class="text-sm font-semibold text-purple-800 mb-3">📋 Capture Summary</h3>
-                    <div class="grid grid-cols-2 gap-3 text-sm">
+                <div id="summarySection" class="bg-gradient-to-r from-#e6f7f7 to-#e6f7f7 rounded-xl p-4 border border-#b3e6e5">
+                    <h3 class="text-base font-semibold text-#228b89 mb-3">Capture Settings</h3>
+                    <div class="grid grid-cols-2 gap-3 text-base">
                         <div class="flex items-center space-x-2">
                             <span class="text-gray-500">Website:</span>
                             <span id="summaryUrl" class="font-medium text-gray-800 truncate">Not set</span>
@@ -305,35 +229,50 @@
                 <button 
                     type="submit" 
                     id="submitBtn"
-                    class="w-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-semibold py-3 px-6 rounded-lg hover:from-purple-700 hover:to-indigo-700 transition transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2"
+                    style="background: linear-gradient(to right, #2fbbb8, #26a5a3); color: white;"
+                    class="w-full text-white font-semibold py-3 px-6 rounded-lg hover:opacity-90 transition transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-offset-2 shadow-lg"
+                    onmouseover="this.style.background='linear-gradient(to right, #26a5a3, #228b89)'"
+                    onmouseout="this.style.background='linear-gradient(to right, #2fbbb8, #26a5a3)'"
                 >
-                    🚀 Start Capturing
+                    Start Capturing
                 </button>
             </form>
         </div>
 
         <!-- Job Status -->
-        <div id="jobStatus" class="max-w-2xl mx-auto card rounded-2xl shadow-2xl p-8 mb-8 hidden">
+        <div id="jobStatus" class="w-[85%] mx-auto card rounded-2xl shadow-2xl p-8 mb-8 hidden">
             <div class="flex items-center justify-between mb-4">
                 <h2 class="text-xl font-semibold text-gray-800">Capture Progress</h2>
                 <span id="jobId" class="text-sm text-gray-500"></span>
             </div>
             
-            <!-- Progress Bar -->
-            <div class="mb-4">
-                <div class="flex justify-between mb-1">
-                    <span id="statusMessage" class="text-sm font-medium text-gray-700">Starting...</span>
-                    <span id="progressPercent" class="text-sm font-medium text-gray-700">0%</span>
-                </div>
-                <div class="w-full bg-gray-200 rounded-full h-3">
-                    <div id="progressBar" class="bg-gradient-to-r from-purple-600 to-indigo-600 h-3 rounded-full transition-all duration-500" style="width: 0%"></div>
+            <!-- Status Display -->
+            <div class="mb-4 space-y-2">
+                <div id="statusMessage" class="text-base font-medium text-gray-800">Starting...</div>
+                <div class="flex flex-wrap gap-4 text-sm">
+                    <div id="crawlStatus" class="hidden bg-#cceeee text-#228b89 px-3 py-1 rounded-full">
+                        🕷️ Crawled: <span id="crawlCount">0</span>/<span id="crawlTotal">?</span> pages
+                    </div>
+                    <div id="screenshotStatus" class="hidden bg-#cceeee text-#228b89 px-3 py-1 rounded-full">
+                        📸 Captured: <span id="screenshotCount2">0</span>/<span id="screenshotTotal">?</span> pages
+                    </div>
                 </div>
             </div>
 
             <!-- Status Indicator -->
-            <div id="statusIndicator" class="flex items-center space-x-3">
-                <div class="spinner"></div>
-                <span class="text-gray-600">Processing...</span>
+            <div id="statusIndicator" class="flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <div class="spinner"></div>
+                    <span class="text-gray-600">Processing...</span>
+                </div>
+                <button 
+                    id="cancelBtn"
+                    class="bg-red-500 text-white font-semibold py-2 px-4 rounded-lg hover:bg-red-600 transition flex items-center space-x-2"
+                    onclick="cancelJob()"
+                >
+                    <span>✕</span>
+                    <span>Cancel</span>
+                </button>
             </div>
 
             <!-- Actions (shown when complete) -->
@@ -355,7 +294,7 @@
         </div>
 
         <!-- Screenshots Gallery -->
-        <div id="screenshotsGallery" class="max-w-6xl mx-auto card rounded-2xl shadow-2xl p-8 hidden">
+        <div id="screenshotsGallery" class="w-[85%] mx-auto card rounded-2xl shadow-2xl p-8 hidden">
             <div class="flex items-center justify-between mb-6">
                 <h2 class="text-xl font-semibold text-gray-800">📷 Captured Screenshots</h2>
                 <span id="screenshotCount" class="text-sm text-gray-500"></span>
@@ -381,6 +320,9 @@
         const socket = io();
         let currentJobId = null;
         let previewTimeout = null;
+        
+        // Client-side storage for screenshots (stored in browser memory)
+        let screenshotStorage = {};  // { jobId: { filename: base64Data, ... }, ... }
 
         // Mode and device labels
         const modeLabels = {
@@ -490,9 +432,21 @@
         // Initialize summary
         updateSummary();
 
-        // Socket connection
+        // Socket connection with reconnection handling
         socket.on('connect', () => {
             console.log('Connected to server');
+            // Resubscribe to job if we were tracking one
+            if (currentJobId && !currentJobId.startsWith('both')) {
+                socket.emit('subscribe', { job_id: currentJobId });
+            }
+        });
+        
+        socket.on('disconnect', () => {
+            console.log('Disconnected from server');
+        });
+        
+        socket.on('connect_error', (error) => {
+            console.error('Connection error:', error);
         });
 
         socket.on('job_update', (job) => {
@@ -500,6 +454,94 @@
                 updateJobStatus(job);
             }
         });
+
+        // Handle incoming screenshot data - store in browser memory
+        socket.on('screenshot_data', (data) => {
+            const { job_id, filename, data: base64Data, count } = data;
+            
+            // Initialize storage for this job if not exists
+            if (!screenshotStorage[job_id]) {
+                screenshotStorage[job_id] = {};
+            }
+            
+            // Store the screenshot in browser memory
+            screenshotStorage[job_id][filename] = base64Data;
+            
+            // Update the gallery in real-time
+            if (currentJobId === job_id || (currentJobId && currentJobId.includes(job_id))) {
+                addScreenshotToGallery(filename, base64Data);
+            }
+            
+            console.log(`Received screenshot ${count}: ${filename} (${(base64Data.length / 1024).toFixed(1)} KB)`);
+        });
+        
+        // Handle chunked screenshot data for large images
+        const screenshotChunks = {};  // {filename: {chunks: [], received: 0, total: 0}}
+        
+        socket.on('screenshot_chunk', (data) => {
+            const { job_id, filename, chunk, chunk_index, total_chunks, count } = data;
+            
+            // Initialize chunk storage for this file
+            if (!screenshotChunks[filename]) {
+                screenshotChunks[filename] = {
+                    chunks: new Array(total_chunks),
+                    received: 0,
+                    total: total_chunks,
+                    job_id: job_id
+                };
+            }
+            
+            // Store the chunk
+            screenshotChunks[filename].chunks[chunk_index] = chunk;
+            screenshotChunks[filename].received++;
+            
+            console.log(`Received chunk ${chunk_index + 1}/${total_chunks} for ${filename}`);
+            
+            // Check if all chunks received
+            if (screenshotChunks[filename].received === total_chunks) {
+                // Reconstruct the full base64 string
+                const base64Data = screenshotChunks[filename].chunks.join('');
+                
+                // Initialize storage for this job if not exists
+                if (!screenshotStorage[job_id]) {
+                    screenshotStorage[job_id] = {};
+                }
+                
+                // Store the complete screenshot
+                screenshotStorage[job_id][filename] = base64Data;
+                
+                // Update the gallery
+                if (currentJobId === job_id || (currentJobId && currentJobId.includes(job_id))) {
+                    addScreenshotToGallery(filename, base64Data);
+                }
+                
+                console.log(`✓ Complete screenshot ${count}: ${filename} (${(base64Data.length / 1024).toFixed(1)} KB)`);
+                
+                // Clean up chunk storage
+                delete screenshotChunks[filename];
+            }
+        });
+
+        // Add a screenshot to the gallery
+        function addScreenshotToGallery(filename, base64Data) {
+            const gallery = document.getElementById('screenshotsGallery');
+            const grid = document.getElementById('screenshotsGrid');
+            const count = document.getElementById('screenshotCount');
+            
+            gallery.classList.remove('hidden');
+            
+            // Create data URL from base64
+            const dataUrl = `data:image/png;base64,${base64Data}`;
+            
+            // Create screenshot element
+            const div = document.createElement('div');
+            div.className = 'screenshot-item';
+            div.onclick = () => openModal(dataUrl);
+            div.innerHTML = `<img src="${dataUrl}" alt="${filename}" loading="lazy">`;
+            
+            grid.appendChild(div);
+            count.textContent = `${grid.children.length} screenshots`;
+        }
 
         // Form submission
         document.getElementById('captureForm').addEventListener('submit', async (e) => {
@@ -514,6 +556,10 @@
                 alert('Please enter a URL');
                 return;
             }
+            
+            // Clear previous screenshots from memory and UI
+            screenshotStorage = {};
+            document.getElementById('screenshotsGrid').innerHTML = '';
 
             // Disable form
             document.getElementById('submitBtn').disabled = true;
@@ -552,6 +598,19 @@
                     // Store job IDs for download
                     window.bothJobIds = [desktopJob.id, mobileJob.id];
                     
+                    // Wait for mobile to complete and then show download button
+                    await waitForJob(mobileJob.id);
+                    
+                    // Both jobs done - show completion
+                    const grid = document.getElementById('screenshotsGrid');
+                    updateJobStatus({ 
+                        id: 'both', 
+                        status: 'completed', 
+                        progress: 100, 
+                        message: 'All captures completed!',
+                        result: { screenshots: grid.children.length }
+                    });
+                    
                 } else {
                     const response = await fetch('/api/jobs', {
                         method: 'POST',
@@ -567,6 +626,9 @@
                         currentJobId = job.id;
                         showJobStatus(job);
                         socket.emit('subscribe', { job_id: job.id });
+                        
+                        // Start a fallback polling mechanism to catch completion if socket event is missed
+                        startCompletionPolling(job.id);
                     } else {
                         alert(job.error || 'Failed to start capture');
                         resetForm();
@@ -594,6 +656,29 @@
             });
         }
 
+        // Fallback polling to catch job completion via HTTP if socket event is missed
+        let completionPollIntervals = {};
+        function startCompletionPolling(jobId) {
+            // Only poll for single jobs (not "both")
+            if (jobId === currentJobId && !jobId.includes(':')) {
+                console.log(`Starting completion polling for job ${jobId}`);
+                completionPollIntervals[jobId] = setInterval(async () => {
+                    try {
+                        const response = await fetch(`/api/jobs/${jobId}`);
+                        const job = await response.json();
+                        if (job.status === 'completed' || job.status === 'failed') {
+                            console.log(`Job ${jobId} status from polling: ${job.status}`);
+                            updateJobStatus(job);
+                            clearInterval(completionPollIntervals[jobId]);
+                            delete completionPollIntervals[jobId];
+                        }
+                    } catch (error) {
+                        console.error(`Polling error for job ${jobId}:`, error);
+                    }
+                }, 3000);  // Poll every 3 seconds
+            }
+        }
+
         function showJobStatus(job) {
             document.getElementById('captureForm').classList.add('hidden');
             document.getElementById('jobStatus').classList.remove('hidden');
@@ -602,26 +687,90 @@
         }
 
         function updateJobStatus(job) {
-            document.getElementById('statusMessage').textContent = job.message;
-            document.getElementById('progressPercent').textContent = `${job.progress}%`;
-            document.getElementById('progressBar').style.width = `${job.progress}%`;
-
+            const statusMessage = document.getElementById('statusMessage');
+            const crawlStatus = document.getElementById('crawlStatus');
+            const screenshotStatus = document.getElementById('screenshotStatus');
             const statusIndicator = document.getElementById('statusIndicator');
             const jobActions = document.getElementById('jobActions');
+            
+            // Update status message
+            statusMessage.textContent = job.message;
+            
+            // Parse and display crawl/screenshot counts from message
+            const msg = job.message || '';
+            
+            // Match "Crawling pages... (x/y found)" pattern (from crawl mode)
+            const crawlMatch = msg.match(/Crawling\s+pages.*?\((\d+)\/(\d+)\s+found\)/i);
+            if (crawlMatch) {
+                crawlStatus.classList.remove('hidden');
+                document.getElementById('crawlCount').textContent = crawlMatch[1];
+                document.getElementById('crawlTotal').textContent = crawlMatch[2];
+            }
+            
+            // Match "Crawled X pages" (when crawl finishes)
+            const foundMatch = msg.match(/Crawled\s+(\d+)\s+pages/i);
+            if (foundMatch) {
+                crawlStatus.classList.remove('hidden');
+                document.getElementById('crawlCount').textContent = foundMatch[1];
+                document.getElementById('crawlTotal').textContent = foundMatch[1];
+            }
+            
+            // Match "Found X pages in sitemap" (sitemap mode)
+            const sitemapMatch = msg.match(/Found\s+(\d+)\s+pages\s+in\s+sitemap/i);
+            if (sitemapMatch) {
+                screenshotStatus.classList.remove('hidden');
+                document.getElementById('screenshotTotal').textContent = sitemapMatch[1];
+            }
+            
+            // Match "Capturing screenshot x/y" pattern
+            const captureMatch = msg.match(/Capturing\s+screenshot\s+(\d+)\/(\d+)/i);
+            if (captureMatch) {
+                screenshotStatus.classList.remove('hidden');
+                document.getElementById('screenshotCount2').textContent = captureMatch[1];
+                document.getElementById('screenshotTotal').textContent = captureMatch[2];
+            }
+            
+            // Also update screenshot count when we receive screenshots
+            const grid = document.getElementById('screenshotsGrid');
+            if (grid.children.length > 0) {
+                screenshotStatus.classList.remove('hidden');
+                document.getElementById('screenshotCount2').textContent = grid.children.length;
+            }
 
             if (job.status === 'completed') {
+                // Hide crawl status, show final screenshot count
+                crawlStatus.classList.add('hidden');
+                if (job.result) {
+                    screenshotStatus.classList.remove('hidden');
+                    document.getElementById('screenshotCount2').textContent = job.result.screenshots || grid.children.length;
+                    document.getElementById('screenshotTotal').textContent = job.result.screenshots || grid.children.length;
+                }
+                
                 statusIndicator.innerHTML = `
                     <span class="text-green-500 text-2xl">✓</span>
                     <span class="text-green-600 font-medium">Completed successfully!</span>
                 `;
                 jobActions.classList.remove('hidden');
                 
-                // Load screenshots from the right job(s)
-                if (currentJobId && currentJobId.startsWith('both:')) {
-                    const ids = currentJobId.split(':').slice(1);
-                    ids.forEach(id => loadScreenshots(id));
+                // Screenshots are already loaded in real-time via socket events
+                // Just make sure the gallery is visible
+                const gallery = document.getElementById('screenshotsGallery');
+                if (grid.children.length > 0) {
+                    gallery.classList.remove('hidden');
+                }
+            } else if (job.status === 'cancelled') {
+                statusIndicator.innerHTML = `
+                    <span class="text-orange-500 text-2xl">⊘</span>
+                    <span class="text-orange-600 font-medium">Cancelled by user</span>
+                `;
+                document.getElementById('newCaptureBtn').classList.remove('hidden');
+                document.getElementById('jobActions').classList.remove('hidden');
+                // Show download button if we have screenshots
+                if (grid.children.length > 0) {
+                    document.getElementById('downloadBtn').classList.remove('hidden');
+                    document.getElementById('screenshotsGallery').classList.remove('hidden');
                 } else {
-                    loadScreenshots(job.id);
+                    document.getElementById('downloadBtn').classList.add('hidden');
                 }
             } else if (job.status === 'failed') {
                 statusIndicator.innerHTML = `
@@ -633,50 +782,115 @@
                 document.getElementById('downloadBtn').classList.add('hidden');
             } else {
                 statusIndicator.innerHTML = `
-                    <div class="spinner"></div>
-                    <span class="text-gray-600 pulse">Processing...</span>
+                    <div class="flex items-center justify-between w-full">
+                        <div class="flex items-center space-x-3">
+                            <div class="spinner"></div>
+                            <span class="text-gray-600 pulse">Processing...</span>
+                        </div>
+                        <button 
+                            id="cancelBtnInner"
+                            class="bg-red-500 text-white font-semibold py-2 px-4 rounded-lg hover:bg-red-600 transition flex items-center space-x-2"
+                            onclick="cancelJob()"
+                        >
+                            <span>✕</span>
+                            <span>Cancel</span>
+                        </button>
+                    </div>
                 `;
             }
         }
-
-        async function loadScreenshots(jobId) {
+        
+        // Cancel job function
+        async function cancelJob() {
+            if (!currentJobId || currentJobId === 'both') {
+                // For 'both' mode, we'd need to cancel both jobs
+                alert('Cannot cancel at this time');
+                return;
+            }
+            
+            const jobIdToCancel = currentJobId.includes(':') ? currentJobId.split(':')[1] : currentJobId;
+            
             try {
-                const response = await fetch(`/api/jobs/${jobId}/screenshots`);
-                const screenshots = await response.json();
+                const response = await fetch(`/api/jobs/${jobIdToCancel}/cancel`, {
+                    method: 'POST'
+                });
                 
-                if (screenshots.length > 0) {
-                    const gallery = document.getElementById('screenshotsGallery');
-                    const grid = document.getElementById('screenshotsGrid');
-                    const count = document.getElementById('screenshotCount');
-                    
-                    gallery.classList.remove('hidden');
-                    
-                    // Append to existing
-                    const existingCount = grid.children.length;
-                    count.textContent = `${existingCount + screenshots.length} screenshots`;
-                    
-                    grid.innerHTML += screenshots.map(s => `
-                        <div class="screenshot-item" onclick="openModal('${s.url}')">
-                            <img src="${s.url}" alt="${s.filename}" loading="lazy">
-                        </div>
-                    `).join('');
+                if (response.ok) {
+                    console.log('Job cancelled');
+                    // Clear any polling intervals
+                    if (completionPollIntervals[jobIdToCancel]) {
+                        clearInterval(completionPollIntervals[jobIdToCancel]);
+                        delete completionPollIntervals[jobIdToCancel];
+                    }
+                } else {
+                    const data = await response.json();
+                    console.error('Cancel failed:', data.error);
                 }
             } catch (error) {
-                console.error('Error loading screenshots:', error);
+                console.error('Error cancelling job:', error);
             }
         }
 
-        // Download button
-        document.getElementById('downloadBtn').addEventListener('click', () => {
-            if (currentJobId && currentJobId.startsWith('both:') && window.bothJobIds) {
-                // Download both ZIPs
-                for (const id of window.bothJobIds) {
-                    window.open(`/api/jobs/${id}/download`, '_blank');
+        // Generate and download ZIP file client-side using JSZip
+        async function downloadZip() {
+            const downloadBtn = document.getElementById('downloadBtn');
+            const originalText = downloadBtn.innerHTML;
+            
+            try {
+                downloadBtn.disabled = true;
+                downloadBtn.innerHTML = '<div class="spinner mx-auto"></div> <span>Generating ZIP...</span>';
+                
+                const zip = new JSZip();
+                let totalScreenshots = 0;
+                
+                // Collect all screenshots from storage
+                for (const jobId in screenshotStorage) {
+                    const screenshots = screenshotStorage[jobId];
+                    for (const filename in screenshots) {
+                        const base64Data = screenshots[filename];
+                        // Add file to ZIP
+                        zip.file(filename, base64Data, { base64: true });
+                        totalScreenshots++;
+                    }
                 }
-            } else if (currentJobId && !currentJobId.startsWith('both')) {
-                window.location.href = `/api/jobs/${currentJobId}/download`;
+                
+                if (totalScreenshots === 0) {
+                    alert('No screenshots to download');
+                    return;
+                }
+                
+                // Generate ZIP blob
+                const blob = await zip.generateAsync({ 
+                    type: 'blob',
+                    compression: 'DEFLATE',
+                    compressionOptions: { level: 6 }
+                }, (metadata) => {
+                    downloadBtn.innerHTML = `<span>📦</span> <span>Compressing... ${metadata.percent.toFixed(0)}%</span>`;
+                });
+                
+                // Get website name for the filename
+                const urlInput = document.getElementById('url').value.trim();
+                let siteName = 'screenshots';
+                try {
+                    const url = new URL(urlInput.startsWith('http') ? urlInput : 'https://' + urlInput);
+                    siteName = url.hostname.replace(/\./g, '-');
+                } catch (e) {}
+                
+                // Download using FileSaver
+                const timestamp = new Date().toISOString().slice(0, 10);
+                saveAs(blob, `${siteName}-screenshots.zip`);
+                
+            } catch (error) {
+                console.error('Error generating ZIP:', error);
+                alert('Error generating ZIP file: ' + error.message);
+            } finally {
+                downloadBtn.disabled = false;
+                downloadBtn.innerHTML = originalText;
             }
-        });
+        }
+
+        // Download button - now generates ZIP client-side
+        document.getElementById('downloadBtn').addEventListener('click', downloadZip);
 
         // New capture button
         document.getElementById('newCaptureBtn').addEventListener('click', () => {
@@ -687,11 +901,13 @@
             document.getElementById('captureForm').classList.remove('hidden');
             currentJobId = null;
             window.bothJobIds = null;
+            // Clear screenshot storage
+            screenshotStorage = {};
         });
 
         function resetForm() {
             document.getElementById('submitBtn').disabled = false;
-            document.getElementById('submitBtn').innerHTML = '🚀 Start Capturing';
+            document.getElementById('submitBtn').innerHTML = 'Start Capturing';
             document.getElementById('jobActions').classList.add('hidden');
             document.getElementById('downloadBtn').classList.remove('hidden');
         }

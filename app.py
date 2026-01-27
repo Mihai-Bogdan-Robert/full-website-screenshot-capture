@@ -2,18 +2,25 @@
 """
 Flask web application for Full Website Captures.
 Provides a web interface to capture screenshots of websites from their sitemaps.
+Screenshots are streamed to the browser and stored client-side.
 """
+
+# Eventlet monkey-patching must happen FIRST before any other imports
+import eventlet
+eventlet.monkey_patch(thread=False)  # Don't patch threading - needed for Playwright
 
 import os
 import uuid
-import shutil
-import zipfile
+import base64
 import logging
+import time
 from datetime import datetime
-from flask import Flask, render_template, request, jsonify, send_file, url_for
-from flask_socketio import SocketIO, emit
+from flask import Flask, render_template, request, jsonify
+from flask_socketio import SocketIO, emit, join_room, leave_room
 import main
 import threading
+from concurrent.futures import ThreadPoolExecutor
+from queue import Queue
 
 # Configure logging
 logging.basicConfig(
@@ -25,14 +32,26 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
-socketio = SocketIO(app, cors_allowed_origins="*")
 
-# Directory to store screenshots
-SCREENSHOTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'screenshots')
-os.makedirs(SCREENSHOTS_DIR, exist_ok=True)
+# Configure SocketIO with optimized settings
+socketio = SocketIO(
+    app,
+    cors_allowed_origins="*",
+    max_http_buffer_size=10 * 1024 * 1024,  # 10MB buffer
+    ping_timeout=120,
+    ping_interval=25,
+    async_mode='eventlet',
+    logger=False,
+    engineio_logger=False
+)
 
-# Store active jobs
+# Thread pool for running Playwright in separate threads
+executor = ThreadPoolExecutor(max_workers=2)
+
+# Store active jobs and client sessions
 jobs = {}
+active_sessions = {}  # {job_id: [session_ids]}
+cancelled_jobs = set()  # Set of job IDs that have been cancelled
 
 
 class Job:
@@ -47,7 +66,7 @@ class Job:
         self.message = 'Waiting to start...'
         self.result = None
         self.error = None
-        self.output_dir = os.path.join(SCREENSHOTS_DIR, job_id)
+        self.screenshot_count = 0
         self.created_at = datetime.now()
         
     def to_dict(self):
@@ -62,6 +81,7 @@ class Job:
             'message': self.message,
             'result': self.result,
             'error': self.error,
+            'screenshot_count': self.screenshot_count,
             'created_at': self.created_at.isoformat()
         }
 
@@ -103,9 +123,9 @@ def create_job():
     job = Job(job_id, url, max_pages, mode, device)
     jobs[job_id] = job
     
-    # Start the job in a background thread
-    thread = threading.Thread(target=run_job, args=(job,), daemon=True)
-    thread.start()
+    # Start the job in a native thread (NOT eventlet greenlet)
+    # This allows Playwright to work properly with its own threading
+    executor.submit(run_job, job)
     
     return jsonify(job.to_dict()), 201
 
@@ -119,80 +139,112 @@ def get_job(job_id):
     return jsonify(job.to_dict())
 
 
-@app.route('/api/jobs/<job_id>/download', methods=['GET'])
-def download_job(job_id):
-    """Download screenshots as a ZIP file."""
+@app.route('/api/jobs/<job_id>/cancel', methods=['POST'])
+def cancel_job(job_id):
+    """Cancel a running job."""
     job = jobs.get(job_id)
     if not job:
         return jsonify({'error': 'Job not found'}), 404
     
-    if job.status != 'completed':
-        return jsonify({'error': 'Job not completed yet'}), 400
+    if job.status in ('completed', 'failed', 'cancelled'):
+        return jsonify({'error': 'Job already finished'}), 400
     
-    if not os.path.exists(job.output_dir):
-        return jsonify({'error': 'Screenshots not found'}), 404
+    # Mark job as cancelled
+    cancelled_jobs.add(job_id)
+    job.status = 'cancelled'
+    job.message = 'Cancelled by user'
     
-    # Create ZIP file
-    zip_path = os.path.join(SCREENSHOTS_DIR, f'{job_id}.zip')
-    with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
-        for root, dirs, files in os.walk(job.output_dir):
-            for file in files:
-                file_path = os.path.join(root, file)
-                arcname = os.path.relpath(file_path, job.output_dir)
-                zipf.write(file_path, arcname)
+    # Emit update to clients
+    try:
+        socketio.emit('job_update', job.to_dict(), room=job_id)
+    except Exception as e:
+        logger.error(f"[Job {job_id}] Failed to emit cancel status: {e}")
     
-    return send_file(
-        zip_path,
-        mimetype='application/zip',
-        as_attachment=True,
-        download_name=f'screenshots-{job_id}.zip'
-    )
+    logger.info(f"[Job {job_id}] Cancelled by user")
+    return jsonify({'message': 'Job cancelled'})
 
 
-@app.route('/api/jobs/<job_id>/screenshots', methods=['GET'])
-def list_screenshots(job_id):
-    """List screenshots for a job."""
-    job = jobs.get(job_id)
-    if not job:
-        return jsonify({'error': 'Job not found'}), 404
-    
-    if not os.path.exists(job.output_dir):
-        return jsonify([])
-    
-    screenshots = []
-    for filename in sorted(os.listdir(job.output_dir)):
-        if filename.endswith('.png'):
-            screenshots.append({
-                'filename': filename,
-                'url': url_for('serve_screenshot', job_id=job_id, filename=filename)
-            })
-    
-    return jsonify(screenshots)
-
-
-@app.route('/screenshots/<job_id>/<filename>')
-def serve_screenshot(job_id, filename):
-    """Serve a screenshot file."""
-    job = jobs.get(job_id)
-    if not job:
-        return jsonify({'error': 'Job not found'}), 404
-    
-    file_path = os.path.join(job.output_dir, filename)
-    if not os.path.exists(file_path):
-        return jsonify({'error': 'File not found'}), 404
-    
-    return send_file(file_path, mimetype='image/png')
+# No longer needed - screenshots are stored client-side and ZIP is generated in browser
 
 
 def run_job(job):
-    """Run the screenshot job in background."""
+    """Run the screenshot job in background. Screenshots are streamed to browser via Socket.IO."""
+    
+    # Thread-safe wrapper for socketio.emit
+    def emit_safe(event, data, room=None):
+        """Emit Socket.IO event from any thread safely."""
+        try:
+            if room:
+                socketio.emit(event, data, room=room)
+            else:
+                socketio.emit(event, data)
+        except Exception as e:
+            logger.error(f"[Job {job.id}] Failed to emit {event}: {e}")
+    
     def update_status(status, message, progress=None):
         job.status = status
         job.message = message
         if progress is not None:
             job.progress = progress
-        socketio.emit('job_update', job.to_dict())
-        logger.info(f"[Job {job.id}] {message}")
+        try:
+            emit_safe('job_update', job.to_dict(), room=job.id)
+            logger.info(f"[Job {job.id}] {message}")
+        except Exception as e:
+            logger.error(f"[Job {job.id}] Failed to emit status: {e}")
+    
+    def send_screenshot(filename, image_data_base64):
+        """Send screenshot data to browser via Socket.IO with chunking for large images."""
+        job.screenshot_count += 1
+        
+        try:
+            # Check if we have active sessions
+            if job.id not in active_sessions or not active_sessions[job.id]:
+                logger.warning(f"[Job {job.id}] No active sessions, skipping screenshot: {filename}")
+                return
+            
+            # Calculate image size
+            image_size = len(image_data_base64)
+            chunk_size = 500 * 1024  # 500KB chunks
+            
+            if image_size > chunk_size:
+                # Send large images in chunks
+                num_chunks = (image_size + chunk_size - 1) // chunk_size
+                logger.info(f"[Job {job.id}] Sending {filename} in {num_chunks} chunks ({image_size / 1024:.1f} KB)")
+                
+                for i in range(num_chunks):
+                    start = i * chunk_size
+                    end = min(start + chunk_size, image_size)
+                    chunk = image_data_base64[start:end]
+                    
+                    emit_safe('screenshot_chunk', {
+                        'job_id': job.id,
+                        'filename': filename,
+                        'chunk': chunk,
+                        'chunk_index': i,
+                        'total_chunks': num_chunks,
+                        'count': job.screenshot_count
+                    }, room=job.id)
+                    
+                    # Small delay between chunks to prevent overwhelming the connection
+                    eventlet.sleep(0.05)
+                
+                logger.info(f"[Job {job.id}] Sent screenshot: {filename} (chunked)")
+            else:
+                # Send small images directly
+                emit_safe('screenshot_data', {
+                    'job_id': job.id,
+                    'filename': filename,
+                    'data': image_data_base64,
+                    'count': job.screenshot_count
+                }, room=job.id)
+                
+                logger.info(f"[Job {job.id}] Sent screenshot: {filename} ({image_size / 1024:.1f} KB)")
+            
+            # Small delay after each screenshot to prevent socket overflow
+            eventlet.sleep(0.1)
+            
+        except Exception as e:
+            logger.error(f"[Job {job.id}] Failed to send screenshot {filename}: {e}")
     
     try:
         device_label = 'mobile' if job.device == 'mobile' else 'desktop'
@@ -204,29 +256,59 @@ def run_job(job):
         else:
             update_status('running', f'Parsing sitemap ({device_label})...', 15)
         
-        # Run the main screenshot function with the selected mode and device
+        # Create thread-safe progress/screenshot callbacks
+        class ThreadSafeCallback:
+            def __init__(self, job_id):
+                self.job_id = job_id
+                
+            def progress(self, msg, pct):
+                update_status('running', msg, pct)
+            
+            def screenshot(self, filename, image_data_base64):
+                send_screenshot(filename, image_data_base64)
+            
+            def is_cancelled(self):
+                return self.job_id in cancelled_jobs
+        
+        callback = ThreadSafeCallback(job.id)
+        
+        # Run the main screenshot function directly (not in ThreadPoolExecutor)
+        # The callbacks handle Socket.IO emissions which are thread-safe in Flask-SocketIO
+        logger.info(f"[Job {job.id}] Running screenshot capture...")
         result = main.main(
-            folder=job.output_dir,
             url=job.url,
             max_pages=job.max_pages,
             headless=True,
             mode=job.mode,
             device=job.device,
-            progress_callback=lambda msg, pct: update_status('running', msg, pct)
+            progress_callback=callback.progress,
+            screenshot_callback=callback.screenshot,
+            cancel_check=callback.is_cancelled
         )
+        
+        logger.info(f"[Job {job.id}] main.main() returned successfully")
+        logger.info(f"[Job {job.id}] Result type: {type(result)}, value: {result}")
+        
+        # Check if job was cancelled
+        if job.id in cancelled_jobs:
+            logger.info(f"[Job {job.id}] Job was cancelled")
+            cancelled_jobs.discard(job.id)  # Clean up
+            return
+        
+        logger.info(f"[Job {job.id}] Got result: {result}")
         
         job.result = {
             'screenshots': result.get('screenshots', 0),
             'failed': result.get('failed', 0),
-            'urls_found': result.get('urls_found', 0),
-            'output_dir': job.output_dir
+            'urls_found': result.get('urls_found', 0)
         }
         
         logger.info(f"[Job {job.id}] Completed: {result.get('screenshots', 0)} screenshots, {result.get('failed', 0)} failed")
         update_status('completed', f"Done! {result.get('screenshots', 0)} screenshots captured.", 100)
+        logger.info(f"[Job {job.id}] Completion status emitted")
         
     except Exception as e:
-        logger.error(f"[Job {job.id}] Error: {str(e)}")
+        logger.error(f"[Job {job.id}] Error: {str(e)}", exc_info=True)
         job.error = str(e)
         update_status('failed', f'Error: {str(e)}', 0)
 
@@ -234,7 +316,20 @@ def run_job(job):
 @socketio.on('connect')
 def handle_connect():
     """Handle client connection."""
+    logger.info(f"Client connected: {request.sid}")
     emit('connected', {'message': 'Connected to server'})
+
+
+@socketio.on('disconnect')
+def handle_disconnect():
+    """Handle client disconnection."""
+    logger.info(f"Client disconnected: {request.sid}")
+    # Remove from all job rooms
+    for job_id, sessions in list(active_sessions.items()):
+        if request.sid in sessions:
+            sessions.remove(request.sid)
+            if not sessions:
+                del active_sessions[job_id]
 
 
 @socketio.on('subscribe')
@@ -242,7 +337,30 @@ def handle_subscribe(data):
     """Subscribe to job updates."""
     job_id = data.get('job_id')
     if job_id and job_id in jobs:
+        # Join the job's room
+        join_room(job_id)
+        
+        # Track active session
+        if job_id not in active_sessions:
+            active_sessions[job_id] = []
+        if request.sid not in active_sessions[job_id]:
+            active_sessions[job_id].append(request.sid)
+        
+        logger.info(f"Client {request.sid} subscribed to job {job_id}")
         emit('job_update', jobs[job_id].to_dict())
+
+
+@socketio.on('unsubscribe')
+def handle_unsubscribe(data):
+    """Unsubscribe from job updates."""
+    job_id = data.get('job_id')
+    if job_id:
+        leave_room(job_id)
+        if job_id in active_sessions and request.sid in active_sessions[job_id]:
+            active_sessions[job_id].remove(request.sid)
+            if not active_sessions[job_id]:
+                del active_sessions[job_id]
+        logger.info(f"Client {request.sid} unsubscribed from job {job_id}")
 
 
 if __name__ == '__main__':
