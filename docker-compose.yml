@@ -1,3 +1,5 @@
+version: '3.8'
+
 services:
   web:
     build: .
@@ -8,15 +10,31 @@ services:
       - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
       - PYTHONUNBUFFERED=1
     restart: unless-stopped
+    
+    # Resource limits (adjust based on your server capacity)
     deploy:
       resources:
         limits:
-          memory: 2G
+          memory: 3G      # Maximum memory per container
+          cpus: '2.0'     # Maximum CPU cores
         reservations:
-          memory: 512M
+          memory: 1G    # Guaranteed memory
+          cpus: '0.5'     # Guaranteed CPU
+    
+    # Health check to ensure container is running properly
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:5001/"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
+      interval: 30s       # Check every 30 seconds
+      timeout: 10s        # Consider unhealthy if no response in 10s
+      retries: 3          # Retry 3 times before marking unhealthy
+      start_period: 20s   # Wait 20s after start before first check
+    
+    # Security: run as non-root user (uncomment if needed)
+    # user: "1000:1000"
+    
+    # Logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"   # Maximum log file size
+        max-file: "3"     # Keep 3 log files
