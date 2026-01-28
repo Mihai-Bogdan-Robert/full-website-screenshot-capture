@@ -17,6 +17,7 @@ import queue
 import logging
 import requests
 import base64
+import asyncio
 import xml.etree.ElementTree as ET
 from urllib.parse import urlparse, urljoin, urldefrag
 from bs4 import BeautifulSoup
@@ -203,6 +204,7 @@ def screenshot_urls(urls, folder=None, start_index=0, max_pages=None, headless=T
     Takes screenshots of the given URLs using Playwright.
 
     Filenames are created from the page <title>, sanitized for filesystem safety.
+    Mobile screenshots are suffixed with '-mobile'.
     
     Args:
         urls: List of URLs to capture
@@ -218,6 +220,8 @@ def screenshot_urls(urls, folder=None, start_index=0, max_pages=None, headless=T
     
     Returns a dict with counts, failed URLs and saved file paths.
     """
+    # Determine if this is mobile mode for filename suffix
+    is_mobile = device == 'mobile'
     # Only create folder if we're saving to disk
     if folder and not screenshot_callback:
         os.makedirs(folder, exist_ok=True)
@@ -255,6 +259,21 @@ def screenshot_urls(urls, folder=None, start_index=0, max_pages=None, headless=T
     used = set()
 
     # 'used' keeps track of generated filenames during this run so we can avoid collisions when two pages produce the same title.
+
+    # Clean up any existing event loop to prevent "inside asyncio loop" error
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            # Create a new event loop if current one is running
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+        elif loop.is_closed():
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+    except RuntimeError:
+        # No event loop exists, create a new one
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
 
     # Manually manage playwright to avoid blocking on context manager exit
     from playwright.sync_api import sync_playwright
@@ -378,8 +397,9 @@ def screenshot_urls(urls, folder=None, start_index=0, max_pages=None, headless=T
                     title = ''
 
                 name = sanitize(title)
-                # join index and name with a dash (e.g., 007-Optik)
-                base = f"{idx:03d}-{name}"
+                # Build filename: index-PageTitle.png or index-PageTitle-mobile.png
+                suffix = "-mobile" if is_mobile else ""
+                base = f"{idx:03d}-{name}{suffix}"
                 filename = base + ".png"
                 n = 1
 
@@ -424,9 +444,25 @@ def screenshot_urls(urls, folder=None, start_index=0, max_pages=None, headless=T
             logger.warning(f"⚠️  Browser cleanup error (non-fatal): {e}")
     
     finally:
-        # Note: We skip calling playwright_instance.stop() because it hangs indefinitely
-        # The Playwright instance will be cleaned up when the process exits.
-        # This was causing 10+ second delays in job completion.
+        # Properly stop Playwright to clean up asyncio event loop
+        # Use a thread with timeout to prevent hanging
+        import threading
+        
+        def stop_playwright():
+            try:
+                playwright_instance.stop()
+            except Exception:
+                pass
+        
+        stop_thread = threading.Thread(target=stop_playwright, daemon=True)
+        stop_thread.start()
+        stop_thread.join(timeout=5)  # Wait max 5 seconds
+        
+        if stop_thread.is_alive():
+            logger.warning(f"⚠️  Playwright stop timed out (continuing anyway)")
+        else:
+            logger.info(f"✅ Playwright instance stopped")
+        
         logger.info(f"✅ Job completed: {total} screenshots, {failed} failed")
     return { 'screenshots': total, 'failed': failed, 'failed_urls': failed_urls, 'saved': saved_files, 'out_dir': folder }
 

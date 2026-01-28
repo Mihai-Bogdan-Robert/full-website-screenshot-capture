@@ -17,10 +17,16 @@ import time
 from datetime import datetime
 from flask import Flask, render_template, request, jsonify
 from flask_socketio import SocketIO, emit, join_room, leave_room
-import main
 import threading
-from concurrent.futures import ThreadPoolExecutor
-from queue import Queue
+import multiprocessing
+from queue import Queue, Empty
+
+# Set multiprocessing start method to 'spawn' for proper process isolation
+# This is required on macOS and prevents issues with forking eventlet-patched processes
+try:
+    multiprocessing.set_start_method('spawn', force=True)
+except RuntimeError:
+    pass  # Already set
 
 # Configure logging
 logging.basicConfig(
@@ -45,13 +51,14 @@ socketio = SocketIO(
     engineio_logger=False
 )
 
-# Thread pool for running Playwright in separate threads
-executor = ThreadPoolExecutor(max_workers=2)
-
-# Store active jobs and client sessions
+# Track active jobs and client sessions
 jobs = {}
 active_sessions = {}  # {job_id: [session_ids]}
 cancelled_jobs = set()  # Set of job IDs that have been cancelled
+
+# Multiprocessing manager for cross-process communication
+mp_manager = None
+job_queues = {}  # {job_id: multiprocessing.Queue} for receiving results from workers
 
 
 class Job:
@@ -124,8 +131,9 @@ def create_job():
     jobs[job_id] = job
     
     # Start the job in a native thread (NOT eventlet greenlet)
-    # This allows Playwright to work properly with its own threading
-    executor.submit(run_job, job)
+    # The thread will spawn a separate process for Playwright isolation
+    job_thread = threading.Thread(target=run_job, args=(job,), daemon=True)
+    job_thread.start()
     
     return jsonify(job.to_dict()), 201
 
@@ -164,11 +172,99 @@ def cancel_job(job_id):
     return jsonify({'message': 'Job cancelled'})
 
 
+@app.route('/api/check-sitemap', methods=['POST'])
+def check_sitemap():
+    """Check if a sitemap exists for the given URL."""
+    data = request.get_json()
+    
+    if not data or not data.get('url'):
+        return jsonify({'error': 'URL is required'}), 400
+    
+    url = data['url'].strip()
+    
+    # Normalize URL
+    if not url.startswith('http://') and not url.startswith('https://'):
+        url = 'https://' + url
+    
+    try:
+        from urllib.parse import urlparse
+        import requests
+        
+        parsed = urlparse(url)
+        sitemap_url = f"{parsed.scheme}://{parsed.netloc}/sitemap.xml"
+        
+        # Try to fetch the sitemap with a short timeout
+        response = requests.head(sitemap_url, timeout=3, allow_redirects=True)
+        
+        if response.status_code == 200:
+            return jsonify({'exists': True, 'sitemap_url': sitemap_url})
+        else:
+            return jsonify({'exists': False})
+            
+    except Exception as e:
+        logger.debug(f"Sitemap check failed for {url}: {e}")
+        return jsonify({'exists': False})
+
+
 # No longer needed - screenshots are stored client-side and ZIP is generated in browser
 
 
+def playwright_worker(url, max_pages, mode, device, job_id, result_queue, cancel_event):
+    """
+    Worker function that runs Playwright in a separate process.
+    This completely isolates asyncio event loops between jobs.
+    """
+    import main
+    import logging
+    import base64
+    
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s [%(levelname)s] %(message)s',
+        datefmt='%H:%M:%S'
+    )
+    logger = logging.getLogger(__name__)
+    
+    def progress_callback(msg, pct):
+        result_queue.put({'type': 'progress', 'message': msg, 'percent': pct})
+    
+    def screenshot_callback(filename, image_data_base64):
+        result_queue.put({'type': 'screenshot', 'filename': filename, 'data': image_data_base64})
+    
+    def cancel_check():
+        return cancel_event.is_set()
+    
+    try:
+        logger.info(f"[Worker {job_id}] Starting Playwright capture")
+        result = main.main(
+            url=url,
+            max_pages=max_pages,
+            headless=True,
+            mode=mode,
+            device=device,
+            progress_callback=progress_callback,
+            screenshot_callback=screenshot_callback,
+            cancel_check=cancel_check
+        )
+        result_queue.put({'type': 'complete', 'result': result})
+        logger.info(f"[Worker {job_id}] Completed successfully")
+    except Exception as e:
+        logger.error(f"[Worker {job_id}] Error: {e}")
+        result_queue.put({'type': 'error', 'error': str(e)})
+
+
 def run_job(job):
-    """Run the screenshot job in background. Screenshots are streamed to browser via Socket.IO."""
+    """Run the screenshot job in background using a separate process for Playwright isolation."""
+    
+    # Set maximum job duration (30 minutes)
+    MAX_JOB_DURATION = 1800
+    start_time = time.time()
+    
+    def check_timeout():
+        if time.time() - start_time > MAX_JOB_DURATION:
+            logger.warning(f"[Job {job.id}] Timeout exceeded ({MAX_JOB_DURATION}s)")
+            return True
+        return False
     
     # Thread-safe wrapper for socketio.emit
     def emit_safe(event, data, room=None):
@@ -250,62 +346,108 @@ def run_job(job):
         device_label = 'mobile' if job.device == 'mobile' else 'desktop'
         logger.info(f"[Job {job.id}] Starting capture for {job.url}")
         logger.info(f"[Job {job.id}] Mode: {job.mode}, Device: {device_label}, Max pages: {job.max_pages}")
+        logger.info(f"[Job {job.id}] Timeout: {MAX_JOB_DURATION}s")
         
         if job.mode == 'crawl':
             update_status('running', f'Crawling website to discover pages ({device_label})...', 15)
         else:
             update_status('running', f'Parsing sitemap ({device_label})...', 15)
         
-        # Create thread-safe progress/screenshot callbacks
-        class ThreadSafeCallback:
-            def __init__(self, job_id):
-                self.job_id = job_id
-                
-            def progress(self, msg, pct):
-                update_status('running', msg, pct)
-            
-            def screenshot(self, filename, image_data_base64):
-                send_screenshot(filename, image_data_base64)
-            
-            def is_cancelled(self):
-                return self.job_id in cancelled_jobs
+        # Create multiprocessing primitives for communication
+        result_queue = multiprocessing.Queue()
+        cancel_event = multiprocessing.Event()
         
-        callback = ThreadSafeCallback(job.id)
-        
-        # Run the main screenshot function directly (not in ThreadPoolExecutor)
-        # The callbacks handle Socket.IO emissions which are thread-safe in Flask-SocketIO
-        logger.info(f"[Job {job.id}] Running screenshot capture...")
-        result = main.main(
-            url=job.url,
-            max_pages=job.max_pages,
-            headless=True,
-            mode=job.mode,
-            device=job.device,
-            progress_callback=callback.progress,
-            screenshot_callback=callback.screenshot,
-            cancel_check=callback.is_cancelled
+        # Start Playwright in a separate process to isolate asyncio event loop
+        logger.info(f"[Job {job.id}] Spawning Playwright worker process...")
+        worker_process = multiprocessing.Process(
+            target=playwright_worker,
+            args=(job.url, job.max_pages, job.mode, job.device, job.id, result_queue, cancel_event)
         )
+        worker_process.start()
         
-        logger.info(f"[Job {job.id}] main.main() returned successfully")
-        logger.info(f"[Job {job.id}] Result type: {type(result)}, value: {result}")
+        job_completed = False
         
-        # Check if job was cancelled
-        if job.id in cancelled_jobs:
-            logger.info(f"[Job {job.id}] Job was cancelled")
-            cancelled_jobs.discard(job.id)  # Clean up
-            return
+        # Monitor the process and handle messages
+        while True:
+            # Check for cancellation
+            if job.id in cancelled_jobs or check_timeout():
+                logger.info(f"[Job {job.id}] Signaling worker to stop...")
+                cancel_event.set()
+                worker_process.join(timeout=10)
+                if worker_process.is_alive():
+                    logger.warning(f"[Job {job.id}] Force terminating worker...")
+                    worker_process.terminate()
+                    worker_process.join(timeout=5)
+                cancelled_jobs.discard(job.id)
+                return
+            
+            # Process messages from worker with timeout
+            try:
+                msg = result_queue.get(timeout=0.5)
+                
+                if msg['type'] == 'progress':
+                    update_status('running', msg['message'], msg['percent'])
+                
+                elif msg['type'] == 'screenshot':
+                    send_screenshot(msg['filename'], msg['data'])
+                
+                elif msg['type'] == 'complete':
+                    result = msg['result']
+                    job.result = {
+                        'screenshots': result.get('screenshots', 0),
+                        'failed': result.get('failed', 0),
+                        'urls_found': result.get('urls_found', 0)
+                    }
+                    logger.info(f"[Job {job.id}] Completed: {result.get('screenshots', 0)} screenshots, {result.get('failed', 0)} failed")
+                    update_status('completed', f"Done! {result.get('screenshots', 0)} screenshots captured.", 100)
+                    job_completed = True
+                    break  # Exit loop on completion
+                    
+                elif msg['type'] == 'error':
+                    raise Exception(msg['error'])
+                    
+            except Empty:
+                # Queue timeout - check if process is still alive
+                if not worker_process.is_alive():
+                    # Process died, drain any remaining messages
+                    try:
+                        while True:
+                            msg = result_queue.get_nowait()
+                            if msg['type'] == 'complete':
+                                result = msg['result']
+                                job.result = {
+                                    'screenshots': result.get('screenshots', 0),
+                                    'failed': result.get('failed', 0),
+                                    'urls_found': result.get('urls_found', 0)
+                                }
+                                logger.info(f"[Job {job.id}] Completed: {result.get('screenshots', 0)} screenshots, {result.get('failed', 0)} failed")
+                                update_status('completed', f"Done! {result.get('screenshots', 0)} screenshots captured.", 100)
+                                job_completed = True
+                            elif msg['type'] == 'error':
+                                raise Exception(msg['error'])
+                            elif msg['type'] == 'screenshot':
+                                send_screenshot(msg['filename'], msg['data'])
+                    except Empty:
+                        pass
+                    break  # Exit loop when process is dead and queue is empty
+                continue
+            except Exception as e:
+                if not isinstance(e, Empty):
+                    raise
         
-        logger.info(f"[Job {job.id}] Got result: {result}")
+        # Wait for process to finish
+        worker_process.join(timeout=30)
+        if worker_process.is_alive():
+            logger.warning(f"[Job {job.id}] Worker still alive, terminating...")
+            worker_process.terminate()
+            worker_process.join(timeout=5)
         
-        job.result = {
-            'screenshots': result.get('screenshots', 0),
-            'failed': result.get('failed', 0),
-            'urls_found': result.get('urls_found', 0)
-        }
+        # If job didn't complete normally, mark as failed
+        if not job_completed and job.status != 'completed':
+            logger.warning(f"[Job {job.id}] Worker process ended without completion message")
+            update_status('failed', 'Worker process ended unexpectedly', 0)
         
-        logger.info(f"[Job {job.id}] Completed: {result.get('screenshots', 0)} screenshots, {result.get('failed', 0)} failed")
-        update_status('completed', f"Done! {result.get('screenshots', 0)} screenshots captured.", 100)
-        logger.info(f"[Job {job.id}] Completion status emitted")
+        logger.info(f"[Job {job.id}] Worker process completed")
         
     except Exception as e:
         logger.error(f"[Job {job.id}] Error: {str(e)}", exc_info=True)
