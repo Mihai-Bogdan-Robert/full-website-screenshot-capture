@@ -1,452 +1,361 @@
-# Full Website Captures
+# website-capture v2.0 — Full-Page Website Screenshot Tool
 
-![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)
-![Flask](https://img.shields.io/badge/flask-3.0-green.svg)
-![Playwright](https://img.shields.io/badge/playwright-1.45-orange.svg)
-![License: CC BY-NC-ND 4.0](https://img.shields.io/badge/License-CC%20BY--NC--ND%204.0-lightgrey.svg)
+A complete system for discovering and capturing full-page screenshots of websites using Playwright, Docker, and modern web technologies.
 
-A powerful web application that automatically captures full-page screenshots of entire websites. Simply enter a URL and let the app discover and screenshot all pages—perfect for archiving, design reviews, competitive analysis, documentation, or portfolio showcases.
+## Features
 
----
-
-## ✨ Features
-
-### Core Functionality
-- 📸 **Full-Page Screenshots** — Captures complete page content including below-the-fold content
-- 🖥️ **Multi-Viewport Support** — Desktop (1920×1080), Mobile (390×844), or capture **both simultaneously**
-- 🗺️ **Sitemap Mode** — Fast page discovery using sitemap.xml (recommended)
-- 🕷️ **Crawl Mode** — Discover pages by following internal links (no sitemap required)
-- 🍪 **Smart Cookie Handling** — Automatically dismisses cookie banners in multiple languages
-- 🖼️ **Lazy-Load Support** — Waits for images and animations to fully load before capturing
+-  **Multiple Discovery Methods**: Sitemap (fast) or web crawler (comprehensive)
+-  **Multi-Device Support**: Capture desktop and mobile viewports simultaneously
+-  **Automatic Cookie Handling**: Dismisses cookie banners automatically
+-  **Real-time Progress**: Live progress updates during capture
+-  **Screenshot Gallery**: Interactive preview and download
+-  **Two Usage Modes**:
+- **Web Interface** — Browser-based UI for visual workflows
+- **CLI Tool** — Command-line interface for automation
+-  **Docker-Ready**: Backend runs in a containerized environment
+-  **REST API**: Extensible backend API for integrations
 
 ---
 
-## 📋 Table of Contents
+## Quick Start (3 minutes)
 
-- [Quick Start](#-quick-start)
-- [How to Use](#-how-to-use)
-- [Deployment](#-deployment)
-- [How It Works (Technical)](#-how-it-works-technical)
-- [Configuration](#%EF%B8%8F-configuration)
-- [Troubleshooting](#-troubleshooting)
-- [License](#-license)
+### Prerequisites
+- Docker & Docker Compose
+- Python 3.8+ (for CLI usage)
 
----
-
-## 🚀 Quick Start
-
-### Option 1: Docker (Recommended)
-
+### Step 1: Start the backend
 ```bash
-# Clone the repository
-git clone https://github.com/Mihai-Bogdan-Robert/Full-Website-Captures.git
-cd Full-Website-Captures
+cd website-capture
+docker-compose up -d
+```
 
-# Start with Docker Compose
+The backend will be ready at `http://localhost:5000`
+
+### Step 2: Choose your interface
+
+#### **Option A: Web Interface** (Browser)
+1. Open `http://localhost:5000` in your browser
+2. Enter a domain (e.g., `example.com`)
+3. Select discovery method and devices
+4. Click "Start Capture"
+5. Watch progress and download screenshots
+
+#### **Option B: CLI Tool** (Terminal)
+```bash
+# Install the CLI tool (one-time)
+cd cli && ./install.sh
+
+# Capture a website
+webcapture capture example.com
+
+# Capture with options
+webcapture capture example.com --mode crawl --device mobile --max 50 --output ./my-screenshots
+
+# Check job status
+webcapture status <job_id>
+
+# Cancel a job
+webcapture cancel <job_id>
+```
+
+---
+
+## Documentation
+
+### Getting Started
+- [QUICKSTART.md](QUICKSTART.md) — Detailed setup guide for both methods
+- [WEB_INTERFACE_README.md](frontend/README.md) — Web UI documentation
+- [CLI Documentation](docs/CLI.md) — Command-line tool guide
+
+### Architecture & Development
+- [Architecture Overview](docs/ARCHITECTURE.md) — How the system works
+- [Backend Documentation](docs/BACKEND.md) — Docker, API, and core logic
+- [Web Interface Guide](docs/WEB_INTERFACE.md) — Frontend implementation details
+
+---
+
+## Use Cases
+
+### Web Interface (Best for)
+ One-off captures
+ Visual workflow preference
+ Real-time monitoring
+ Non-technical users
+ Testing individual websites
+
+### CLI Tool (Best for)
+ Automation & scripting
+ Batch processing
+ CI/CD pipelines
+ Scheduled captures
+ Server environments
+ Integration with other tools
+
+---
+
+## Project Structure
+
+```
+website-capture/
+├── docker-compose.yml        ← Start the backend
+├── app.py                    ← Local dev entry point (no Docker)
+│
+├── backend/
+│   ├── Dockerfile           ← Container definition
+│   ├── requirements.txt      ← Backend dependencies
+│   ├── api.py               ← Flask REST API server
+│   └── src/                 ← Core screenshot logic
+│       ├── main.py          ├ Main orchestration
+│       ├── crawler.py       ├ Web crawler
+│       ├── screenshot.py    ├ Screenshot capture
+│       ├── sitemap.py       ├ Sitemap parsing
+│       ├── cookie.py        ├ Cookie handling
+│       ├── utils.py         ├ URL utilities
+│       └── config.py        └ Configuration
+│
+├── frontend/                 ← Browser UI (Option A)
+│   ├── index.html
+│   ├── style.css
+│   └── script.js
+│
+├── cli/                      ← CLI tool (Option B)
+│   ├── webcapture.py
+│   ├── setup.py
+│   └── install.sh
+│
+└── docs/                     ← Documentation
+    ├── ARCHITECTURE.md
+    ├── BACKEND.md
+    ├── CLI.md
+    └── WEB_INTERFACE.md
+```
+
+---
+
+## Common Commands
+
+### Docker
+```bash
+# Start backend (runs in background)
 docker-compose up -d
 
 # View logs
-docker logs -f full-website-captures
+docker-compose logs -f backend
+
+# Stop backend
+docker-compose down
+
+# Rebuild container
+docker-compose up -d --build
 ```
 
-Open **http://localhost:5001** in your browser.
+### Web Interface
+- Open `http://localhost:5000`
+- No additional setup needed
 
-### Option 2: Local Python Installation
-
-**Prerequisites:** Python 3.11+, pip
-
+### CLI Tool
 ```bash
-# Create virtual environment
-python3 -m venv .venv
-source .venv/bin/activate  # Windows: .venv\Scripts\activate
+# Install (one-time)
+cd cli && ./install.sh
 
-# Install dependencies
-pip install -r requirements.txt
+# Use
+webcapture capture example.com
+webcapture capture example.com --help
 
-# Install Playwright browser
-python -m playwright install chromium
-python -m playwright install-deps chromium
-
-# Start the server
-python app.py
+# Point to custom backend
+WEBCAPTURE_API=http://192.168.1.10:5000 webcapture capture example.com
 ```
 
-Open **http://localhost:5001** in your browser.
+### Local Development (no Docker)
+```bash
+# Install dependencies
+pip install -r backend/requirements.txt
+playwright install chromium
+
+# Run with Flask debug mode
+FLASK_ENV=development python app.py
+```
 
 ---
 
-## 📖 How to Use
+## API Endpoints
 
-### Basic Workflow
+The backend provides REST endpoints:
 
-1. **Enter Website URL**
-   - Type or paste any website URL (e.g., `example.com`)
-   - Protocol (`https://`) is optional—it's added automatically
+### Start Capture
+```
+POST /api/capture/start
+Content-Type: application/json
 
-2. **Configure Capture Settings**
-   - **Mode:** Choose between Sitemap or Crawl
-     - 🗺️ **Sitemap** (Recommended): Fast, uses sitemap.xml
-     - 🕷️ **Crawl**: Discovers pages by following links
-   - **Viewport:** Select capture resolution
-     - 🖥️ **Desktop**: 1920×1080 resolution
-     - 📱 **Mobile**: 390×844 (iPhone 13 Pro size)
-     - 🔄 **Both**: Captures desktop first, then mobile (all in one ZIP)
-   - **Max Pages:** Limit number of pages to capture (1-500)
-
-3. **Check Sitemap Availability** (Optional)
-   - Click "Check Sitemap" to see if the site has a sitemap
-   - If available, use Sitemap mode for faster captures
-
-4. **Start Capture**
-   - Click "Start Capture" button
-   - The interface will show:
-     - Pages crawled/discovered
-     - Screenshots captured vs total
-     - Real-time progress percentage
-     - Live screenshot previews in grid
-
-5. **Monitor Progress**
-   - Watch the progress bar and status messages
-   - View screenshots appearing in real-time below
-   - Cancel anytime with "Cancel Capture" button
-
-6. **Download Results**
-   - When complete, click "Download ZIP"
-   - File is auto-named: `example.com-screenshots.zip`
-   - For "Both" mode, ZIP contains both desktop and mobile screenshots
-
-### Tips for Best Results
-
-- ✅ Use **Sitemap mode** when available—it's much faster
-- ✅ Start with a **low page limit** (10-20) to test first
-- ✅ Use **Mobile viewport** to capture responsive designs
-- ✅ Check **sitemap availability** before starting large captures
-- ⚠️ Large sites (100+ pages) can take 10-30 minutes
-- ⚠️ Some sites may block automated access—respect robots.txt
-
----
-
-## 🐳 Deployment
-
-### Production Deployment (Docker Compose)
-
-**For deploying on a local server or VPS:**
-
-1. **Clone and Configure**
-   ```bash
-   git clone https://github.com/Mihai-Bogdan-Robert/Full-Website-Captures.git
-   cd Full-Website-Captures
-   ```
-
-2. **Set Environment Variables** (Optional)
-   ```bash
-   # Create .env file
-   echo "SECRET_KEY=$(openssl rand -hex 32)" > .env
-   ```
-
-3. **Deploy**
-   ```bash
-   # Production deployment
-   docker-compose up -d
-
-   # Or for development with hot-reload
-   docker-compose -f docker-compose.dev.yml up -d
-   ```
-
-4. **Verify Health**
-   ```bash
-   # Check container status
-   docker ps
-
-   # View logs
-   docker logs full-website-captures
-
-   # Check health
-   curl http://localhost:5001/
-   ```
-
-### Reverse Proxy Setup (Nginx)
-
-If deploying on a server with a domain:
-
-```nginx
-server {
-    listen 80;
-    server_name screenshots.yourdomain.com;
-
-    location / {
-        proxy_pass http://localhost:5001;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        
-        # WebSocket support
-        proxy_read_timeout 86400;
-        proxy_send_timeout 86400;
-    }
+{
+    "domain": "https://example.com",
+    "max_pages": 200,
+    "discovery_modes": ["sitemap"],
+    "devices": ["desktop"]
 }
 ```
 
-### Container Management
-
-```bash
-# Stop container
-docker-compose down
-
-# Restart container
-docker-compose restart
-
-# View logs (live)
-docker logs -f full-website-captures
-
-# Rebuild after code changes
-docker-compose up -d --build
-
-# Check resource usage
-docker stats full-website-captures
+### Get Progress
+```
+GET /api/capture/progress/{job_id}
 ```
 
----
-
-## 🔧 How It Works (Technical)
-
-### Architecture Overview
-
+### Cancel Job
 ```
-┌─────────────────────────────────────────────────────┐
-│                   Web Browser                        │
-│  (React-like UI with Socket.IO client)              │
-└─────────────────┬───────────────────────────────────┘
-                  │ WebSocket + HTTP
-                  │
-┌─────────────────▼───────────────────────────────────┐
-│              Flask + SocketIO Server                 │
-│  • Job Management                                    │
-│  • WebSocket Real-time Updates                      │
-│  • Process Orchestration                            │
-└─────────────────┬───────────────────────────────────┘
-                  │ Spawns Process
-                  │
-┌─────────────────▼───────────────────────────────────┐
-│           Playwright Worker Process                  │
-│  • Isolated asyncio event loop                      │
-│  • Chromium browser automation                      │
-│  • Screenshot capture & streaming                   │
-└──────────────────────────────────────────────────────┘
+POST /api/capture/cancel/{job_id}
 ```
 
-### Component Breakdown
+### Download Screenshots
+```
+GET /api/capture/download/{job_id}
+```
 
-#### 1. **Frontend (templates/index.html)**
-- Single-page application with vanilla JavaScript
-- Socket.IO client for real-time bidirectional communication
-- JSZip library for client-side ZIP generation
-- Screenshot storage in memory during capture
-- Responsive grid gallery with lightbox modal
-
-#### 2. **Flask Application (app.py)**
-- **Job Management**: Creates and tracks capture jobs with unique IDs
-- **API Endpoints**:
-  - `POST /api/jobs` — Create new capture job
-  - `GET /api/jobs/<id>` — Get job status
-  - `POST /api/jobs/<id>/cancel` — Cancel running job
-  - `POST /api/check-sitemap` — Check sitemap availability
-- **WebSocket Events**:
-  - `connect/disconnect` — Client connection management
-  - `subscribe/unsubscribe` — Join job-specific rooms
-  - `job_update` — Status and progress updates
-  - `screenshot_data` — Stream screenshot to browser
-  - `screenshot_chunk` — Large screenshot chunking (500KB chunks)
-
-#### 3. **Worker Process (Playwright Isolation)**
-- **Why Process Isolation?** Playwright uses asyncio internally. Running it in the same process as eventlet (Flask-SocketIO's async mode) causes event loop conflicts
-- **Solution**: Each job spawns a separate Python process with its own event loop
-- **Communication**: Uses `multiprocessing.Queue` for sending results back to main process
-- **Cancellation**: `multiprocessing.Event` signals worker to stop gracefully
-
-#### 4. **Screenshot Engine (main.py)**
-
-**Page Discovery:**
-- **Sitemap Mode**: Parses sitemap.xml to extract all `<loc>` URLs
-- **Crawl Mode**: BFS traversal of internal links, respects robots.txt
-
-**Screenshot Process:**
-1. **Browser Launch**: Headless Chromium with device-specific viewport
-2. **Navigation**: Navigate to URL with timeout (`wait_until='commit'`)
-3. **Cookie Dismissal**: Tries 50+ selectors in multiple languages
-4. **Lazy Loading**: Scrolls page to trigger lazy-loaded images
-5. **Image Wait**: Waits for all `<img>` elements to report complete
-6. **Capture**: Full-page screenshot with Playwright
-7. **Streaming**: Base64-encodes and sends to browser via queue
-
-**Optimizations:**
-- 1.5-3 second waits for animations to complete
-- JavaScript scroll simulation to trigger lazy-load
-- Cookie banner auto-dismissal (supports 50+ patterns)
-- Network-aware navigation (doesn't wait for full page idle)
-
-#### 5. **Memory Management**
-- Screenshots never saved to disk on server
-- Base64 data streamed directly to browser
-- Browser stores in-memory until ZIP download
-- Large images (>500KB) sent in chunks to prevent WebSocket overflow
-- Worker process terminates after job, releasing all memory
-
-#### 6. **Error Handling**
-- Job timeout: 30 minutes maximum per job
-- Browser cleanup with 5-second timeout to prevent hanging
-- Process termination if worker becomes unresponsive
-- Cancellation support at any stage
+See [Backend Documentation](docs/BACKEND.md) for full API details.
 
 ---
 
 ## ⚙️ Configuration
 
+### Capture Options
+
+| Option | Values | Default | Notes |
+|--------|--------|---------|-------|
+| **mode** | `sitemap`, `crawl`, `both` | `sitemap` | URL discovery method |
+| **device** | `desktop`, `mobile`, `both` | `desktop` | Viewport to capture |
+| **max_pages** | 1-1000 | 200 | Maximum pages to capture |
+| **delay** | seconds | 1.0 | Delay between requests |
+
 ### Environment Variables
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `SECRET_KEY` | `dev-secret-key-change-in-production` | Flask secret key for sessions |
-| `PYTHONUNBUFFERED` | `1` | Disable Python output buffering (for logs) |
+```bash
+# Backend
+PORT=5000                    # API server port
+FLASK_ENV=development        # Debug mode
+WEB_INTERFACE_DIR=./frontend
 
-### Docker Resource Limits
-
-Defined in `docker-compose.yml`:
-- **Memory Limit**: 2GB maximum
-- **Memory Reservation**: 512MB guaranteed
-- **CPU**: No limit (uses available cores)
-
-Adjust in `docker-compose.yml` if needed:
-```yaml
-deploy:
-  resources:
-    limits:
-      memory: 4G  # Increase for larger sites
-    reservations:
-      memory: 1G
+# CLI
+WEBCAPTURE_API=http://localhost:5000    # Backend URL
 ```
-
-### Application Limits
-
-Hard-coded in `app.py`:
-- **Max Job Duration**: 30 minutes (1800 seconds)
-- **Max Pages**: 500 per capture
-- **WebSocket Buffer**: 10MB
-- **Screenshot Chunk Size**: 500KB
 
 ---
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
-### Screenshots Stuck at "Processing..."
-- **Cause**: Worker process hung during cleanup
-- **Fixed**: Latest version includes 5-second timeout on Playwright cleanup
-- **Solution**: Refresh page and try again
-
-### "Job already finished" Error
-- **Cause**: Attempting to cancel completed job
-- **Solution**: Start a new capture
-
-### Container Won't Start
+### Backend won't start
 ```bash
-# Check logs for errors
-docker logs full-website-captures
-
-# Common fixes:
-docker-compose down
+# Rebuild the container
 docker-compose up -d --build
+
+# Check logs
+docker-compose logs backend
 ```
 
-### High Memory Usage
-- **Normal**: Chromium uses 200-500MB per job
-- **If excessive**: Restart container
+### CLI can't connect to backend
 ```bash
-docker-compose restart
+# Verify backend is running
+curl http://localhost:5000/api/health
+
+# Point to correct backend
+WEBCAPTURE_API=http://localhost:5000 webcapture capture example.com
 ```
 
-### Captures Timing Out
-- Increase timeout in `app.py`:
+### Slow captures
+- Use `sitemap` mode instead of `crawl`
+- Reduce `max_pages`
+- Increase `delay` if getting 429 errors
+
+### Missing screenshots
+- Check browser console (F12) for errors
+- Verify backend logs: `docker-compose logs backend`
+- Try with a different website first
+
+---
+
+## Learn More
+
+- **[QUICKSTART.md](QUICKSTART.md)** — Step-by-step setup
+- **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** — System design
+- **[docs/BACKEND.md](docs/BACKEND.md)** — API & Docker details
+- **[docs/CLI.md](docs/CLI.md)** — CLI reference
+- **[docs/WEB_INTERFACE.md](docs/WEB_INTERFACE.md)** — UI guide
+
+---
+
+## Examples
+
+### Capture a site via web UI
+1. Go to http://localhost:5000
+2. Enter: `theatlantic.com`
+3. Select: Sitemap + Desktop
+4. Click "Start"
+5. Download screenshots when complete
+
+### Capture a site via CLI
+```bash
+webcapture capture theatlantic.com --mode sitemap --device desktop
+```
+
+### Batch capture multiple sites
+```bash
+for site in example.com google.com wikipedia.org; do
+    webcapture capture $site --output ./captures/$site
+done
+```
+
+### Integration example (Python)
 ```python
-MAX_JOB_DURATION = 3600  # 1 hour
+import requests
+
+# Start a capture job via the API
+response = requests.post('http://localhost:5000/api/capture/start', json={
+    'domain': 'example.com',
+    'max_pages': 50,
+    'discovery_modes': ['sitemap'],
+    'devices': ['desktop']
+})
+job_id = response.json()['job_id']
+
+# Poll for completion
+import time
+while True:
+    status = requests.get(f'http://localhost:5000/api/capture/progress/{job_id}').json()
+    if status['status'] == 'completed':
+        print(f"Captured {status['screenshots']} screenshots!")
+        break
+    time.sleep(1)
 ```
 
 ---
 
-## 📁 Project Structure
+## 🤝 Contributing
 
-```
-Full-Website-Captures/
-├── app.py                  # Flask app + SocketIO server
-├── main.py                 # Playwright screenshot engine
-├── templates/
-│   └── index.html          # Single-page web interface
-├── static/
-│   ├── style.css           # Custom styles + gradients
-│   └── favicon.svg         # Camera icon
-├── Dockerfile              # Multi-stage production build
-├── docker-compose.yml      # Production deployment
-├── docker-compose.dev.yml  # Development with hot-reload
-├── requirements.txt        # Python dependencies
-├── .dockerignore           # Docker build exclusions
-├── .gitignore              # Git exclusions
-└── README.md               # This file
-```
+Found a bug or have a feature request? Feel free to open an issue or submit a pull request.
 
 ---
 
-## 🛠️ Tech Stack
+## License
 
-| Component | Technology | Purpose |
-|-----------|-----------|---------|
-| **Backend** | Flask 3.0 | Web framework |
-| **Real-time** | Flask-SocketIO + eventlet | WebSocket communication |
-| **Browser** | Playwright | Headless browser automation |
-| **Parsing** | BeautifulSoup4 | HTML parsing for crawl mode |
-| **Sitemap** | xml.etree.ElementTree | XML parsing |
-| **Frontend** | Vanilla JS + Tailwind CSS | UI and styling |
-| **Download** | JSZip + FileSaver.js | Client-side ZIP generation |
-| **Container** | Docker + Gunicorn | Production deployment |
+See LICENSE file for details.
 
 ---
 
-## 📄 License
+## FAQ
 
-This project is licensed under **CC BY-NC-ND 4.0** (Creative Commons Attribution-NonCommercial-NoDerivatives).
+**Q: Do I need Docker?**
+A: No, you can run locally with `python app.py`, but Docker is recommended for production.
 
-### You MAY:
-- ✅ Use this software for personal, non-commercial purposes
-- ✅ Share the software with proper attribution to the author
-- ✅ Deploy on your own servers for personal use
+**Q: Can I use both web UI and CLI at the same time?**
+A: Yes! They both use the same backend. Start a capture in the web UI and check its status from CLI.
 
-### You MAY NOT:
-- ❌ Sell this software or use it commercially
-- ❌ Use it in any commercial product or service
-- ❌ Offer it as a paid service (SaaS)
-- ❌ Distribute modified versions
-- ❌ Remove or alter attribution
+**Q: What's the maximum number of pages I can capture?**
+A: 1000 pages max per job, but capture time depends on website speed.
 
-See [LICENSE](LICENSE) for full legal details.
+**Q: Can I download screenshots as a ZIP?**
+A: Yes, both interfaces offer ZIP downloads of all captured screenshots.
 
----
-
-## 👤 Author
-
-**Mihai-Bogdan-Robert**
-
-For **commercial licensing inquiries**, please contact the author.
+**Q: Is it safe to capture someone else's website?**
+A: Ensure you have permission. The tool respects robots.txt and includes appropriate delays.
 
 ---
 
-## 🙏 Acknowledgments
-
-- Built with [Playwright](https://playwright.dev/) for reliable browser automation
-- UI inspired by modern dark-mode design trends
-- Cookie banner selectors support 10+ languages
-
----
-
-**⭐ If you find this useful, please star the repository!**
+**Questions?** Check the [documentation folder](docs/) or [QUICKSTART.md](QUICKSTART.md).

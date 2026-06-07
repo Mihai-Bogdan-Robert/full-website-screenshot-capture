@@ -1,30 +1,53 @@
-Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 International
+Hippocratic License 3.0
 
-Copyright (c) 2024 Mihai-Bogdan-Robert
+This license is based on the MIT License, with an additional ethical clause to restrict commercial use.
 
-This work is licensed under the Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 International License.
+Copyright (c) 2024-2026 website-capture contributors
 
-You are free to:
-  - Share — copy and redistribute the material in any medium or format
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
 
-Under the following terms:
-  - Attribution — You must give appropriate credit, provide a link to the license, and indicate if changes were made. You may do so in any reasonable manner, but not in any way that suggests the licensor endorses you or your use.
-  - NonCommercial — You may not use the material for commercial purposes. You may not sell this software or use it in any commercial product or service.
-  - NoDerivatives — If you remix, transform, or build upon the material, you may not distribute the modified material.
-  - No additional restrictions — You may not apply legal terms or technological measures that legally restrict others from doing anything the license permits.
+1. The above copyright notice and this permission notice shall be included in all
+   copies or substantial portions of the Software.
 
-Notices:
-  - You do not have to comply with the license for elements of the material in the public domain or where your use is permitted by an applicable exception or limitation.
-  - No warranties are given. The license may not give you all of the permissions necessary for your intended use. For example, other rights such as publicity, privacy, or moral rights may limit how you use the material.
+2. THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+   IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+   FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+   AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+   LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+   SOFTWARE.
 
-COMMERCIAL USE PROHIBITION:
-This software may NOT be:
-  - Sold or offered for sale
-  - Used in any commercial product or service
-  - Used to generate revenue directly or indirectly
-  - Included in any paid software package
-  - Used by any business or organization for commercial purposes
+3. NON-COMMERCIAL USE CLAUSE:
+   
+   a) The Software may be used by individuals and organizations for
+      non-commercial purposes, including:
+      - Personal use
+      - Educational use
+      - Research use
+      - Non-profit use
+      - Internal business use without offering the Software as a service
+   
+   b) Commercial use is PROHIBITED without prior written permission from the
+      copyright holders. Commercial use includes, but is not limited to:
+      - Selling or licensing the Software
+      - Offering the Software as a service (SaaS)
+      - Using the Software to provide services to third parties for a fee
+      - Using the Software in proprietary commercial products
+      - Charging for access to functionality provided by the Software
+   
+   c) Organizations seeking commercial licenses should contact the project
+      maintainers to negotiate appropriate terms.
 
-For the full license text, see: https://creativecommons.org/licenses/by-nc-nd/4.0/legalcode
+4. If you modify this Software, you must:
+   - Retain this license
+   - Clearly document your modifications
+   - Apply the same non-commercial restrictions to derivative works
+   - Make your modifications available under the same or compatible license
 
-For commercial licensing inquiries, please contact the author.
+The purpose of this license is to keep the Software open and free for community
+development while protecting the interests of the original developers.

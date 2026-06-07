@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Website Capture - Screenshot Tool</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Website Capture</h1>
+            <p class="subtitle">Full-page website screenshots at scale</p>
+        </header>
+
+        <main>
+            <!-- Form Section -->
+            <section id="form-section" class="card">
+                <h2>Capture Settings</h2>
+                
+                <form id="capture-form">
+                    <!-- Domain Input -->
+                    <div class="form-group">
+                        <label for="domain">Domain</label>
+                        <input 
+                            type="text" 
+                            id="domain" 
+                            name="domain" 
+                            placeholder="example.com or https://example.com"
+                            required
+                        >
+                        <small>Enter the website URL or domain you want to capture</small>
+                    </div>
+
+                    <!-- Discovery Mode -->
+                    <div class="form-group">
+                        <label>Discovery Method</label>
+                        <div class="checkbox-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" name="discovery" value="sitemap" checked>
+                                <span class="checkbox-text">Sitemap</span>
+                            </label>
+                            <label class="checkbox-label">
+                                <input type="checkbox" name="discovery" value="crawl">
+                                <span class="checkbox-text">Crawl</span>
+                            </label>
+                        </div>
+                        <small>Sitemap: Fast, uses sitemap.xml. Crawl: Comprehensive, discovers all links</small>
+                    </div>
+
+                    <!-- Device Type -->
+                    <div class="form-group">
+                        <label>Device Type</label>
+                        <div class="checkbox-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" name="device" value="desktop" checked>
+                                <span class="checkbox-text">Desktop</span>
+                            </label>
+                            <label class="checkbox-label">
+                                <input type="checkbox" name="device" value="mobile">
+                                <span class="checkbox-text">Mobile</span>
+                            </label>
+                        </div>
+                        <small>Select which viewports to capture</small>
+                    </div>
+
+                    <!-- Max Pages -->
+                    <div class="form-group">
+                        <label for="max-pages">Maximum Pages</label>
+                        <input 
+                            type="number" 
+                            id="max-pages" 
+                            name="max_pages" 
+                            min="1" 
+                            max="1000" 
+                            value="200"
+                        >
+                        <small>Limit the number of pages to capture (1-1000)</small>
+                    </div>
+
+                    <!-- Submit Button -->
+                    <button type="submit" class="btn btn-primary" id="submit-btn">
+                        Start Capture
+                    </button>
+                </form>
+            </section>
+
+            <!-- Progress Section (Hidden by default) -->
+            <section id="progress-section" class="card" style="display: none;">
+                <h2>Capture Progress</h2>
+                
+                <div class="progress-info">
+                    <p id="progress-message">Initializing...</p>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progress-fill" style="width: 0%"></div>
+                    </div>
+                    <p class="progress-percent" id="progress-percent">0%</p>
+                </div>
+
+                <div class="progress-stats">
+                    <div class="stat-item">
+                        <span class="stat-label">Pages Found:</span>
+                        <span class="stat-value" id="stat-urls-found">0</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Captured:</span>
+                        <span class="stat-value" id="stat-captured">0</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Failed:</span>
+                        <span class="stat-value stat-failed" id="stat-failed">0</span>
+                    </div>
+                </div>
+
+                <button class="btn btn-secondary" id="cancel-btn">Cancel</button>
+            </section>
+
+            <!-- Results Section (Hidden by default) -->
+            <section id="results-section" class="card" style="display: none;">
+                <h2>Capture Results</h2>
+                
+                <div class="results-summary">
+                    <div class="summary-item success">
+                        <span class="summary-icon">✓</span>
+                        <div class="summary-text">
+                            <p class="summary-label">Successful</p>
+                            <p class="summary-value" id="result-success">0</p>
+                        </div>
+                    </div>
+                    <div class="summary-item error">
+                        <span class="summary-icon">✕</span>
+                        <div class="summary-text">
+                            <p class="summary-label">Failed</p>
+                            <p class="summary-value" id="result-failed">0</p>
+                        </div>
+                    </div>
+                    <div class="summary-item info">
+                        <span class="summary-icon">•</span>
+                        <div class="summary-text">
+                            <p class="summary-label">Total Pages</p>
+                            <p class="summary-value" id="result-total">0</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Failed URLs (if any) -->
+                <div id="failed-urls-section" style="display: none;">
+                    <h3>Failed URLs</h3>
+                    <ul id="failed-urls-list" class="failed-urls-list"></ul>
+                </div>
+
+                <!-- Screenshots Gallery -->
+                <h3>Screenshots</h3>
+                <div id="screenshots-container" class="screenshots-grid">
+                    <!-- Screenshots will be added here dynamically -->
+                </div>
+
+                <!-- Download All Button -->
+                <div class="results-actions">
+                    <button class="btn btn-primary" id="download-all-btn">
+                        Download All Screenshots
+                    </button>
+                    <button class="btn btn-secondary" id="new-capture-btn">
+                        New Capture
+                    </button>
+                </div>
+            </section>
+        </main>
+
+        <footer>
+            <p>&copy; 2026 Website Capture - Screenshot Tool</p>
+        </footer>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

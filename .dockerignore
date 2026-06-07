@@ -1,49 +1,30 @@
-# Git
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv
+pip-log.txt
+pip-delete-this-directory.txt
+.coverage
+.pytest_cache/
+.DS_Store
 .git
 .gitignore
-
-# Python
-__pycache__
-*.py[cod]
-*$py.class
-*.so
-.Python
-.venv
-venv
-ENV
-env
-*.egg-info
-.installed.cfg
-*.egg
-
-# IDE
+.dockerignore
+node_modules/
+npm-debug.log
 .idea
 .vscode
 *.swp
 *.swo
 *~
-
-# Screenshots (will be mounted as volume)
-screenshots/
-*.zip
-
-# Documentation
-README.md
-LICENSE
-*.md
-
-# Legacy GUI
-gui.py
-gui-screenshot.png
-
-# Development
-*.log
+.env
 .env.local
-.env.development
-
-# macOS
-.DS_Store
-
-# Version folders
-Version 1/
-Apps/
+*.md
+LICENSE
+tests/
+docs/
+.git
