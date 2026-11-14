@@ -1,0 +1,12 @@
+# Development override: runs the Flask development server on your source files.
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+services:
+  web:
+    command: python app.py
+    volumes:
+      - ./app.py:/app/app.py
+      - ./capture:/app/capture
+      - ./webapp:/app/webapp
+    environment:
+      - HOST=0.0.0.0
+      - FLASK_DEBUG=1

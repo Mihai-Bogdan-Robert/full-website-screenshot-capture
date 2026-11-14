@@ -1,21 +1,13 @@
 services:
-  backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: webcapture-backend
+  web:
+    build: .
+    container_name: full-website-captures
     ports:
-      - "5001:5000"
-    volumes:
-      # Mount frontend so Flask can serve it without rebuilding the image
-      - ./frontend:/app/frontend:ro
+      # Only this computer can reach it. Change to "5001:5001" to expose it on your network.
+      - "127.0.0.1:5001:5001"
     environment:
-      - PORT=5000
-      - WEB_INTERFACE_DIR=/app/frontend
+      - SECRET_KEY=${SECRET_KEY:-}
+      # - ALLOW_PRIVATE_URLS=1   # allow capturing localhost / private-network sites
+      # - ALLOWED_ORIGINS=https://your-domain.example   # when the app is reachable from the internet
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5000/api/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
+    mem_limit: 2g
