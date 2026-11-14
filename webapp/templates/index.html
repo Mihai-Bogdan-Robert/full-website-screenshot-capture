@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#0f0f0f">
+    <title>Full Website Captures</title>
+    <meta name="description" content="Take full-page screenshots of every page of a website in one go. Find pages from the sitemap or by crawling, capture desktop and mobile layouts, and download everything as a ZIP.">
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"
+            integrity="sha384-c79GN5VsunZvi+Q/WObgk2in0CbZsHnjEqvFxC5DxHn9lTfNce2WW6h2pH6u/kF+" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"
+            integrity="sha384-+mbV2IY1Zk/X1p/nWllGySJSUN8uMs+gUAN10Or95UBH0fpj6GfKgPmgC5EXieXG" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"
+            integrity="sha384-PlRSzpewlarQuj5alIadXwjNUX+2eNMKwr0f07ShWYLy8B6TjEbm7ZlcN/ScSbwy" crossorigin="anonymous"></script>
+</head>
+<body>
+{% macro choice(name, value, icon, title, hint, checked=false, id=none) %}
+    <label class="choice">
+        <input type="radio" name="{{ name }}" value="{{ value }}"{% if id %} id="{{ id }}"{% endif %}{% if checked %} checked{% endif %}>
+        <span class="choice-body">
+            <span class="choice-icon" aria-hidden="true">{{ icon }}</span>
+            <span class="choice-text"><strong>{{ title }}</strong><small>{{ hint }}</small></span>
+        </span>
+    </label>
+{% endmacro %}
+
+    <div class="page">
+        <header class="header">
+            <div class="brand">
+                <img class="brand-logo" src="https://bammedia.ro/wp-content/uploads/Logo_Transparent_72ppi_alb-e1709379608361.png" alt="BAM Media">
+                <h1>Full Website Captures</h1>
+            </div>
+            <p>Capture full-page screenshots of entire websites</p>
+        </header>
+
+        <section id="mainCard" class="card">
+            <form id="captureForm" class="form">
+                <div class="field">
+                    <label for="url" class="label">Website URL</label>
+                    <input type="text" id="url" name="url" class="input" placeholder="https://example.com"
+                           inputmode="url" autocapitalize="off" autocorrect="off" autocomplete="url" spellcheck="false" required>
+                </div>
+
+                <fieldset class="field">
+                    <legend class="label">How should we find pages?</legend>
+                    <div class="choices choices-2">
+                        {{ choice('mode', 'sitemap', '🗺️', 'Sitemap', 'Use sitemap.xml', id='sitemapRadio') }}
+                        {{ choice('mode', 'crawl', '🕷️', 'Crawl', 'Discover all links', checked=true) }}
+                    </div>
+                    <p id="sitemapStatus" class="hint hidden"><span id="sitemapMessage"></span></p>
+                    <p id="modeDescription" class="hint">
+                        Uses the website's sitemap.xml to find pages. Fast and reliable if available.
+                    </p>
+                </fieldset>
+
+                <fieldset class="field">
+                    <legend class="label">Capture viewport</legend>
+                    <div class="choices choices-3">
+                        {{ choice('device', 'desktop', '🖥️', 'Desktop', '1920×1080', checked=true) }}
+                        {{ choice('device', 'mobile', '📱', 'Mobile', '390×844') }}
+                        {{ choice('device', 'both', '📱🖥️', 'Both', 'All sizes') }}
+                    </div>
+                </fieldset>
+
+                <div class="field">
+                    <label for="maxPages" class="label">Maximum pages to capture</label>
+                    <input type="number" id="maxPages" name="maxPages" class="input" value="50" min="1" max="500" inputmode="numeric">
+                    <p class="hint">Limit the number of pages to screenshot (1-500)</p>
+                </div>
+
+                <div id="previewSection" class="field hidden">
+                    <span class="label">Website preview</span>
+                    <div class="preview">
+                        <div class="preview-bar">
+                            <span class="preview-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+                            <span id="previewUrl" class="preview-url"></span>
+                        </div>
+                        <div class="preview-body">
+                            <iframe id="previewFrame" title="Website preview" sandbox="allow-scripts allow-same-origin"></iframe>
+                            <div id="previewLoading" class="preview-overlay">
+                                <div>
+                                    <div class="spinner"></div>
+                                    <p>Loading preview...</p>
+                                </div>
+                            </div>
+                            <div id="previewError" class="preview-overlay hidden">
+                                <div>
+                                    <p class="preview-warning" aria-hidden="true">⚠️</p>
+                                    <p>Preview not available</p>
+                                    <p class="hint">The website may block embedding</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="summarySection" class="summary">
+                    <h2>Capture settings</h2>
+                    <dl>
+                        <div><dt>Website</dt><dd id="summaryUrl">Not set</dd></div>
+                        <div><dt>Mode</dt><dd id="summaryMode">🕷️ Crawl</dd></div>
+                        <div><dt>Device</dt><dd id="summaryDevice">🖥️ Desktop</dd></div>
+                        <div><dt>Max pages</dt><dd id="summaryMaxPages">50</dd></div>
+                    </dl>
+                </div>
+
+                <button type="submit" id="submitBtn" class="btn btn-primary">Start Capturing</button>
+            </form>
+        </section>
+
+        <section id="jobStatus" class="card hidden" aria-live="polite">
+            <div class="card-head">
+                <h2>Capture progress</h2>
+                <span id="jobId" class="muted"></span>
+            </div>
+
+            <p id="statusMessage" class="status-message">Starting...</p>
+            <div class="pills">
+                <span id="crawlStatus" class="pill hidden">🕷️ Crawled: <span id="crawlCount">0</span>/<span id="crawlTotal">?</span> pages</span>
+                <span id="screenshotStatus" class="pill hidden">📸 Captured: <span id="screenshotCount2">0</span>/<span id="screenshotTotal">?</span> pages</span>
+            </div>
+
+            <div id="statusIndicator" class="indicator">
+                <div class="indicator-running">
+                    <span class="spinner"></span>
+                    <span class="muted">Processing...</span>
+                </div>
+                <button type="button" data-action="cancel" class="btn btn-danger">✕ Cancel</button>
+            </div>
+
+            <div id="jobActions" class="actions hidden">
+                <button type="button" id="downloadBtn" class="btn btn-success">📥 Download All Screenshots (ZIP)</button>
+                <button type="button" id="newCaptureBtn" class="btn btn-secondary">Start New Capture</button>
+            </div>
+        </section>
+
+        <section id="screenshotsGallery" class="card hidden">
+            <div class="card-head">
+                <h2>📷 Captured screenshots</h2>
+                <span id="screenshotCount" class="muted"></span>
+            </div>
+            <div id="screenshotsGrid" class="gallery"></div>
+        </section>
+
+        <section class="card about" aria-labelledby="about-title">
+            <h2 id="about-title">Capture every page of a website as a full-page screenshot</h2>
+            <p>
+                Full Website Captures is a website screenshot tool that turns a whole site into a set of images.
+                You enter an address, choose how the pages should be found, and a few minutes later you can download
+                a ZIP with one full-page screenshot for every page. There is no account to create, no browser
+                extension to add and nothing to install.
+            </p>
+
+            <h3>The problem it solves</h3>
+            <p>
+                Taking one screenshot is easy. Taking fifty is not. Browser tools usually capture a single page at a
+                time, cut long pages off at the bottom, miss images that only load as you scroll, and leave cookie
+                banners sitting on top of the content. Doing all of that by hand for an entire website takes hours, and
+                it is easy to forget a page along the way. This tool does the repetitive part for you, so you get a
+                complete and consistent set of screenshots instead.
+            </p>
+
+            <h3>How it works</h3>
+            <ol>
+                <li>Enter the address of the website you want to capture.</li>
+                <li>
+                    Pick how the pages are found. <strong>Sitemap</strong> reads the site's <code>sitemap.xml</code>,
+                    which is fast and complete when the site has one. <strong>Crawl</strong> starts from the page you
+                    entered and follows the links on the same site, so it also works when there is no sitemap. It
+                    respects <code>robots.txt</code>.
+                </li>
+                <li>
+                    Choose the viewport: desktop (1920×1080), mobile (390×844, like a phone) or both, which gives you
+                    two versions of every page for checking responsive layouts.
+                </li>
+                <li>Set how many pages to capture and press <em>Start Capturing</em>.</li>
+                <li>Follow the progress, look through the gallery, and download all screenshots as a ZIP file.</li>
+            </ol>
+            <p>
+                Every page is opened in a real Chromium browser, so modern sites that rely on JavaScript look the way
+                a visitor sees them. The tool closes common cookie banners, scrolls down the page so lazy-loaded images
+                appear, and then captures the page from top to bottom. Screenshots are sent straight to your browser and
+                the ZIP file is built there, so the server does not keep a copy of your images.
+            </p>
+
+            <h3>Disclaimer</h3>
+            <p>
+                Only public websites can be captured, and pages that sit behind a login are out of reach. Very long or
+                heavy pages can take a little longer, and a page that fails to load is skipped so the rest of the
+                capture can finish. The source code is public, so you can also run the tool on your own computer.
+            </p>
+        </section>
+
+        <footer class="footer">Non-commercial use only · CC BY-NC-ND 4.0</footer>
+    </div>
+
+    <div id="imageModal" class="modal">
+        <button type="button" id="modalClose" class="modal-close" aria-label="Close">&times;</button>
+        <img id="modalImage" src="" alt="Full screenshot">
+    </div>
+
+    <script type="module" src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>
