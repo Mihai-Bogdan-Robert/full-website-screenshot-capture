@@ -26,7 +26,7 @@ def _error(message, status=400):
 
 @api.get('/')
 def index():
-    return render_template('index.html')
+    return render_template('index.html', max_pages_limit=config.MAX_PAGES_LIMIT)
 
 
 @api.post('/api/jobs')

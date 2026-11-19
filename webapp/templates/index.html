@@ -66,8 +66,8 @@
 
                 <div class="field">
                     <label for="maxPages" class="label">Maximum pages to capture</label>
-                    <input type="number" id="maxPages" name="maxPages" class="input" value="50" min="1" max="500" inputmode="numeric">
-                    <p class="hint">Limit the number of pages to screenshot (1-500)</p>
+                    <input type="number" id="maxPages" name="maxPages" class="input" value="{{ [50, max_pages_limit]|min }}" min="1" max="{{ max_pages_limit }}" inputmode="numeric">
+                    <p class="hint">Limit the number of pages to screenshot (1-{{ max_pages_limit }})</p>
                 </div>
 
                 <div id="previewSection" class="field hidden">

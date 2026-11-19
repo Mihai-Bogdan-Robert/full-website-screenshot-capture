@@ -77,14 +77,14 @@ Browser                        Flask (webapp/)                      Worker proce
 
 A job has the fields `id, url, max_pages, mode, device, status, progress, message, result, error,
 screenshot_count, created_at`. Status goes `pending → running → completed | failed | cancelled`.
-A job that runs longer than 30 minutes (`MAX_JOB_DURATION` in `webapp/config.py`) is stopped and marked failed.
+A job that runs longer than `JOB_TIMEOUT` (30 minutes by default) is stopped and marked failed.
 
 ## HTTP API
 
 | Method and path | Body | Purpose |
 |---|---|---|
 | `GET /` | | The UI |
-| `POST /api/jobs` | `{"url", "max_pages" (default 200, limited to 1–500), "mode": "sitemap"\|"crawl", "device": "desktop"\|"mobile"}` | Start a capture, returns the job (201). Invalid input or a non-public address gives 400 with `{"error": ...}` |
+| `POST /api/jobs` | `{"url", "max_pages" (default 200, limited to 1–`MAX_PAGES_LIMIT`), "mode": "sitemap"\|"crawl", "device": "desktop"\|"mobile"}` | Start a capture, returns the job (201). Invalid input or a non-public address gives 400 with `{"error": ...}` |
 | `GET /api/jobs/<id>` | | Job status. The job id is 32 random hex characters and is the only thing protecting a job's results, so there is deliberately no endpoint that lists jobs |
 | `POST /api/jobs/<id>/cancel` | | Cancel a running job |
 | `POST /api/check-sitemap` | `{"url"}` | Does `<origin>/sitemap.xml` exist? (used by the form) |
@@ -155,7 +155,7 @@ The app opens whatever address a visitor types, so it protects itself and the ne
   the line in `docker-compose.yml`) to allow `localhost` and private networks. Only do that on a
   machine you alone can reach.
 - **Strict input validation.** Bad JSON, missing or oversized URLs, unknown `mode`/`device` and
-  non-numeric `max_pages` give a 400 instead of an error; `max_pages` is limited to 1–500.
+  non-numeric `max_pages` give a 400 instead of an error; `max_pages` is limited to 1–`MAX_PAGES_LIMIT` (500 by default).
 - **Unguessable job ids**, and no endpoint that lists other visitors' jobs.
 - **No HTML built from captured data in the UI**: error messages and file names are inserted as
   text, so a hostile page cannot inject script into the UI.
@@ -172,8 +172,8 @@ The app opens whatever address a visitor types, so it protects itself and the ne
 | `ALLOWED_ORIGINS` | environment, comma-separated | `*`. Set to your domain(s) when the app is on the internet |
 | `SECRET_KEY` | environment | random at every start |
 | `HOST`, `PORT`, `FLASK_DEBUG` | environment, only for `python app.py` | `127.0.0.1`, `5001`, off |
-| Max job duration | `MAX_JOB_DURATION` in `webapp/config.py` | 1800 s |
-| Max pages | API clamp / form field | 1–500; 50 in the form, 200 if the API call omits it |
+| `JOB_TIMEOUT` | environment, seconds | 1800. A longer capture is stopped |
+| `MAX_PAGES_LIMIT` | environment | 500. The form starts at 50 and the API uses 200 when `max_pages` is omitted, or the limit if it is lower |
 | Crawl delay | `delay=` in `capture_site()` | 0.5 s |
 | Finished jobs kept in memory | `JOB_RETENTION` in `webapp/config.py` | 2 hours |
 | Container memory limit | `docker-compose.yml` | 2 GB |
@@ -186,7 +186,8 @@ Socket.IO rooms live in the memory of one process.
 - **No rate limiting or login.** Nothing limits how many captures a visitor can start or how many
   run at once, and anyone who can reach the app can use it. The online version at
   captures.smart-web-tools.com adds limits around this app; they are not part of this repository.
-  If you publish your own instance, add them in front of it (a reverse proxy, or Flask-Limiter).
+  If you publish your own instance, lower `MAX_PAGES_LIMIT` and `JOB_TIMEOUT` and add limits in
+  front of it (a reverse proxy, or Flask-Limiter).
 - **DNS rebinding.** Host names are resolved for the check and again by the HTTP client or
   browser; a hostile DNS server could in theory answer differently the second time. Chromium's
   per-request check narrows this, but for a hostile environment also block internal ranges at the
