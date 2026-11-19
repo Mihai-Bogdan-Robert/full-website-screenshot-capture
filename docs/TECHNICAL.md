@@ -197,3 +197,7 @@ Socket.IO rooms live in the memory of one process.
 - **CORS is open by default** (`ALLOWED_ORIGINS=*`); restrict it on a public instance.
 - Pages behind a login cannot be captured. Large sites produce large ZIPs, built in the browser's
   memory.
+
+## Development
+
+Developed with AI assistance; reviewed and tested by the maintainer.
